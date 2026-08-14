@@ -62,7 +62,6 @@ console.error(`❌ Missing required environment variables: ${missingEnv.join(', 
 process.exit(1);
 }
 
-// FIX: Added RENDER_EXTERNAL_URL fallback for Render deployment
 const config = {
 port: parseInt(process.env.PORT, 10) || 5000,
 nodeEnv: process.env.NODE_ENV,
@@ -1050,10 +1049,6 @@ await query(`UPDATE payments SET metadata = $1 WHERE tx_ref = $2`, [{ link: paym
 return { tx_ref, link: payment.link };
 }
 
-// ============================================================
-// WALLET CREDIT HAPPENS HERE - paymentProcessCallback
-// ============================================================
-
 async function paymentProcessCallback(tx_ref, transaction_id) {
 const client = await getClient();
 
@@ -1061,9 +1056,18 @@ try {
 await client.query('BEGIN');
 
 const payment = await client.query(`SELECT * FROM payments WHERE tx_ref = $1 FOR UPDATE`, [tx_ref]);
-if (!payment.rows.length) throw new Error('Payment not found');
+if (!payment.rows.length) {
+await client.query('COMMIT');
+return { success: false, error: 'Payment not found' };
+}
 
 const paymentData = payment.rows[0];
+
+// Check if payment was cancelled
+if (paymentData.status === 'cancelled') {
+await client.query('COMMIT');
+return { success: false, error: 'Payment was cancelled' };
+}
 
 if (paymentData.status === 'successful') {
 await client.query('COMMIT');
@@ -1089,14 +1093,18 @@ return { success: false, error: 'Verification failed' };
 
 // Get user's current balance
 const balance = await client.query(`SELECT wallet_balance FROM users WHERE id = $1 FOR UPDATE`, [paymentData.user_id]);
-const before = balance.rows[0].wallet_balance;
+if (!balance.rows.length) {
+await client.query('COMMIT');
+return { success: false, error: 'User not found' };
+}
+const before = parseFloat(balance.rows[0].wallet_balance);
 
 // Add the payment amount to user's wallet
 const updated = await client.query(
 `UPDATE users SET wallet_balance = wallet_balance + $1::NUMERIC WHERE id = $2 RETURNING wallet_balance`,
 [paymentData.amount, paymentData.user_id]
 );
-const after = updated.rows[0].wallet_balance;
+const after = parseFloat(updated.rows[0].wallet_balance);
 
 // Mark payment as successful
 await client.query(
@@ -1115,6 +1123,7 @@ return { success: true };
 
 } catch (error) {
 await client.query('ROLLBACK');
+logger.error('paymentProcessCallback error:', { error: error.message });
 throw error;
 } finally {
 client.release();
@@ -1169,7 +1178,6 @@ return results;
 
 const app = express();
 
-// FIX: CORS - Allow Netlify preview URLs
 app.use(cors({
 origin: function(origin, callback) {
 if (!origin) return callback(null, true);
@@ -1438,23 +1446,59 @@ res.json({ messages: [] });
 });
 
 // ============================================================
-// 27. FLUTTERWAVE CALLBACK
+// 27. FLUTTERWAVE CALLBACK - FIXED WITH CANCELLATION HANDLING
 // ============================================================
 
 app.get('/api/payments/callback', async (req, res) => {
 try {
-const { tx_ref, transaction_id } = req.query;
+const { tx_ref, transaction_id, status, cancel } = req.query;
+
+console.log('🔔 Callback received:', req.query);
+
+// ✅ USER CANCELLED PAYMENT
+if (cancel === 'true' || status === 'cancelled') {
+console.log(`ℹ️ Payment cancelled by user: ${tx_ref || 'unknown'}`);
+if (tx_ref) {
+await query(
+`UPDATE payments SET status = 'cancelled', metadata = $1 WHERE tx_ref = $2`,
+[{ cancelled_at: new Date().toISOString() }, tx_ref]
+);
+}
+return res.redirect(`${config.frontendUrls[0]}/wallet?info=Payment%20cancelled`);
+}
+
+// ❌ Missing parameters
 if (!tx_ref || !transaction_id) {
+console.log('❌ Missing parameters:', req.query);
+// Check if payment was cancelled
+if (tx_ref) {
+const payment = await query(`SELECT status FROM payments WHERE tx_ref = $1`, [tx_ref]);
+if (payment.rows.length && payment.rows[0].status === 'cancelled') {
+return res.redirect(`${config.frontendUrls[0]}/wallet?info=Payment%20cancelled`);
+}
+}
 return res.redirect(`${config.frontendUrls[0]}/wallet?error=Invalid%20callback`);
 }
 
+console.log(`✅ Processing payment: ${tx_ref}`);
+
+try {
 const result = await paymentProcessCallback(tx_ref, transaction_id);
 
-if (result.success) {
+if (result.success && !result.alreadyProcessed) {
 return res.redirect(`${config.frontendUrls[0]}/wallet?success=Payment%20successful`);
-}
+} else if (result.alreadyProcessed) {
+return res.redirect(`${config.frontendUrls[0]}/wallet?success=Payment%20already%20processed`);
+} else {
 return res.redirect(`${config.frontendUrls[0]}/wallet?error=Payment%20failed`);
-} catch {
+}
+} catch (callbackError) {
+console.error('❌ Callback processing error:', callbackError);
+return res.redirect(`${config.frontendUrls[0]}/wallet?error=Payment%20failed`);
+}
+
+} catch (error) {
+console.error('❌ Callback error:', error);
 return res.redirect(`${config.frontendUrls[0]}/wallet?error=Payment%20processing%20failed`);
 }
 });
