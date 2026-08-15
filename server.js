@@ -82,7 +82,41 @@ process.exit(1);
 }
 
 // ============================================================
-// 3. DATABASE
+// 3. LIVE USD/NGR RATE FETCHER WITH CACHING
+// ============================================================
+
+let cachedNgnRate = null;
+let rateCacheTime = null;
+const RATE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+async function fetchLiveNgnRate() {
+const now = Date.now();
+if (cachedNgnRate !== null && rateCacheTime !== null && (now - rateCacheTime) < RATE_CACHE_TTL) {
+console.log(`📊 Using cached USD/NGN rate: ₦${cachedNgnRate}`);
+return cachedNgnRate;
+}
+
+try {
+console.log('🔄 Fetching live USD/NGN rate...');
+const response = await axios.get('https://api.exchangerate-api.com/v4/latest/USD', {
+timeout: 5000
+});
+const rate = response.data.rates.NGN;
+if (rate && rate > 0) {
+cachedNgnRate = rate;
+rateCacheTime = now;
+console.log(`✅ Live USD/NGN rate fetched: ₦${rate}`);
+return rate;
+}
+throw new Error('Invalid rate from API');
+} catch (error) {
+console.warn(`⚠️ Failed to fetch live rate: ${error.message}. Using fallback rate ₦${config.usdNgnRate}`);
+return config.usdNgnRate;
+}
+}
+
+// ============================================================
+// 4. DATABASE
 // ============================================================
 
 const pool = new Pool({
@@ -143,7 +177,7 @@ return client;
 }
 
 // ============================================================
-// 4. FIREBASE
+// 5. FIREBASE
 // ============================================================
 
 try {
@@ -161,7 +195,7 @@ process.exit(1);
 }
 
 // ============================================================
-// 5. MIGRATIONS
+// 6. MIGRATIONS
 // ============================================================
 
 const MIGRATIONS = {
@@ -306,7 +340,7 @@ logger.info('All migrations completed');
 }
 
 // ============================================================
-// 6. VALIDATION
+// 7. VALIDATION
 // ============================================================
 
 const schemas = {
@@ -345,7 +379,7 @@ next();
 }
 
 // ============================================================
-// 7. AUTH
+// 8. AUTH
 // ============================================================
 
 const authMiddleware = async (req, res, next) => {
@@ -393,7 +427,7 @@ next();
 };
 
 // ============================================================
-// 8. RATE LIMITING
+// 9. RATE LIMITING
 // ============================================================
 
 const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100, message: 'Too many requests, please try again later.' });
@@ -402,7 +436,7 @@ const purchaseLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 20, message: 
 const topupLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 10, message: 'Too many top-up attempts, please try again later.' });
 
 // ============================================================
-// 9. 5SIM PROVIDER
+// 10. 5SIM PROVIDER
 // ============================================================
 
 const fivesimClient = axios.create({
@@ -420,311 +454,158 @@ timeout: 30000
 // ============================================================
 
 const FIVESIM_COUNTRIES = {
-// Afghanistan - AF
 AF: { name: 'afghanistan', displayName: 'Afghanistan', flag: '🇦🇫' },
-// Albania - AL
 AL: { name: 'albania', displayName: 'Albania', flag: '🇦🇱' },
-// Algeria - DZ
 DZ: { name: 'algeria', displayName: 'Algeria', flag: '🇩🇿' },
-// Angola - AO
 AO: { name: 'angola', displayName: 'Angola', flag: '🇦🇴' },
-// Antigua and Barbuda - AG
 AG: { name: 'antiguaandbarbuda', displayName: 'Antigua and Barbuda', flag: '🇦🇬' },
-// Argentina - AR
 AR: { name: 'argentina', displayName: 'Argentina', flag: '🇦🇷' },
-// Armenia - AM
 AM: { name: 'armenia', displayName: 'Armenia', flag: '🇦🇲' },
-// Aruba - AW
 AW: { name: 'aruba', displayName: 'Aruba', flag: '🇦🇼' },
-// Australia - AU
 AU: { name: 'australia', displayName: 'Australia', flag: '🇦🇺' },
-// Austria - AT
 AT: { name: 'austria', displayName: 'Austria', flag: '🇦🇹' },
-// Azerbaijan - AZ
 AZ: { name: 'azerbaijan', displayName: 'Azerbaijan', flag: '🇦🇿' },
-// Bahamas - BS
 BS: { name: 'bahamas', displayName: 'Bahamas', flag: '🇧🇸' },
-// Bahrain - BH
 BH: { name: 'bahrain', displayName: 'Bahrain', flag: '🇧🇭' },
-// Bangladesh - BD
 BD: { name: 'bangladesh', displayName: 'Bangladesh', flag: '🇧🇩' },
-// Barbados - BB
 BB: { name: 'barbados', displayName: 'Barbados', flag: '🇧🇧' },
-// Belgium - BE
 BE: { name: 'belgium', displayName: 'Belgium', flag: '🇧🇪' },
-// Belize - BZ
 BZ: { name: 'belize', displayName: 'Belize', flag: '🇧🇿' },
-// Benin - BJ
 BJ: { name: 'benin', displayName: 'Benin', flag: '🇧🇯' },
-// Bhutan - BT
 BT: { name: 'bhutane', displayName: 'Bhutan', flag: '🇧🇹' },
-// Bosnia and Herzegovina - BA
 BA: { name: 'bih', displayName: 'Bosnia and Herzegovina', flag: '🇧🇦' },
-// Bolivia - BO
 BO: { name: 'bolivia', displayName: 'Bolivia', flag: '🇧🇴' },
-// Botswana - BW
 BW: { name: 'botswana', displayName: 'Botswana', flag: '🇧🇼' },
-// Brazil - BR
 BR: { name: 'brazil', displayName: 'Brazil', flag: '🇧🇷' },
-// Bulgaria - BG
 BG: { name: 'bulgaria', displayName: 'Bulgaria', flag: '🇧🇬' },
-// Burkina Faso - BF
 BF: { name: 'burkinafaso', displayName: 'Burkina Faso', flag: '🇧🇫' },
-// Burundi - BI
 BI: { name: 'burundi', displayName: 'Burundi', flag: '🇧🇮' },
-// Cambodia - KH
 KH: { name: 'cambodia', displayName: 'Cambodia', flag: '🇰🇭' },
-// Cameroon - CM
 CM: { name: 'cameroon', displayName: 'Cameroon', flag: '🇨🇲' },
-// Canada - CA
 CA: { name: 'canada', displayName: 'Canada', flag: '🇨🇦' },
-// Cape Verde - CV
 CV: { name: 'capeverde', displayName: 'Cape Verde', flag: '🇨🇻' },
-// Chad - TD
 TD: { name: 'chad', displayName: 'Chad', flag: '🇹🇩' },
-// Chile - CL
 CL: { name: 'chile', displayName: 'Chile', flag: '🇨🇱' },
-// Colombia - CO
 CO: { name: 'colombia', displayName: 'Colombia', flag: '🇨🇴' },
-// Comoros - KM
 KM: { name: 'comoros', displayName: 'Comoros', flag: '🇰🇲' },
-// Congo - CG
 CG: { name: 'congo', displayName: 'Congo', flag: '🇨🇬' },
-// Costa Rica - CR
 CR: { name: 'costarica', displayName: 'Costa Rica', flag: '🇨🇷' },
-// Croatia - HR
 HR: { name: 'croatia', displayName: 'Croatia', flag: '🇭🇷' },
-// Cyprus - CY
 CY: { name: 'cyprus', displayName: 'Cyprus', flag: '🇨🇾' },
-// Czechia - CZ
 CZ: { name: 'czech', displayName: 'Czechia', flag: '🇨🇿' },
-// Denmark - DK
 DK: { name: 'denmark', displayName: 'Denmark', flag: '🇩🇰' },
-// Djibouti - DJ
 DJ: { name: 'djibouti', displayName: 'Djibouti', flag: '🇩🇯' },
-// Dominican Republic - DO
 DO: { name: 'dominicana', displayName: 'Dominican Republic', flag: '🇩🇴' },
-// East Timor - TL
 TL: { name: 'easttimor', displayName: 'East Timor', flag: '🇹🇱' },
-// Ecuador - EC
 EC: { name: 'ecuador', displayName: 'Ecuador', flag: '🇪🇨' },
-// Egypt - EG
 EG: { name: 'egypt', displayName: 'Egypt', flag: '🇪🇬' },
-// England - GB
 GB: { name: 'england', displayName: 'England', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿' },
-// Equatorial Guinea - GQ
 GQ: { name: 'equatorialguinea', displayName: 'Equatorial Guinea', flag: '🇬🇶' },
-// Estonia - EE
 EE: { name: 'estonia', displayName: 'Estonia', flag: '🇪🇪' },
-// Ethiopia - ET
 ET: { name: 'ethiopia', displayName: 'Ethiopia', flag: '🇪🇹' },
-// Finland - FI
 FI: { name: 'finland', displayName: 'Finland', flag: '🇫🇮' },
-// France - FR
 FR: { name: 'france', displayName: 'France', flag: '🇫🇷' },
-// French Guiana - GF
 GF: { name: 'frenchguiana', displayName: 'French Guiana', flag: '🇬🇫' },
-// Gabon - GA
 GA: { name: 'gabon', displayName: 'Gabon', flag: '🇬🇦' },
-// Gambia - GM
 GM: { name: 'gambia', displayName: 'Gambia', flag: '🇬🇲' },
-// Georgia - GE
 GE: { name: 'georgia', displayName: 'Georgia', flag: '🇬🇪' },
-// Germany - DE
 DE: { name: 'germany', displayName: 'Germany', flag: '🇩🇪' },
-// Ghana - GH
 GH: { name: 'ghana', displayName: 'Ghana', flag: '🇬🇭' },
-// Greece - GR
 GR: { name: 'greece', displayName: 'Greece', flag: '🇬🇷' },
-// Guadeloupe - GP
 GP: { name: 'guadeloupe', displayName: 'Guadeloupe', flag: '🇬🇵' },
-// Guatemala - GT
 GT: { name: 'guatemala', displayName: 'Guatemala', flag: '🇬🇹' },
-// Guinea - GN
 GN: { name: 'guinea', displayName: 'Guinea', flag: '🇬🇳' },
-// Guinea-Bissau - GW
 GW: { name: 'guineabissau', displayName: 'Guinea-Bissau', flag: '🇬🇼' },
-// Guyana - GY
 GY: { name: 'guyana', displayName: 'Guyana', flag: '🇬🇾' },
-// Haiti - HT
 HT: { name: 'haiti', displayName: 'Haiti', flag: '🇭🇹' },
-// Honduras - HN
 HN: { name: 'honduras', displayName: 'Honduras', flag: '🇭🇳' },
-// Hong Kong - HK
 HK: { name: 'hongkong', displayName: 'Hong Kong', flag: '🇭🇰' },
-// Hungary - HU
 HU: { name: 'hungary', displayName: 'Hungary', flag: '🇭🇺' },
-// India - IN
 IN: { name: 'india', displayName: 'India', flag: '🇮🇳' },
-// Indonesia - ID
 ID: { name: 'indonesia', displayName: 'Indonesia', flag: '🇮🇩' },
-// Ireland - IE
 IE: { name: 'ireland', displayName: 'Ireland', flag: '🇮🇪' },
-// Israel - IL
 IL: { name: 'israel', displayName: 'Israel', flag: '🇮🇱' },
-// Italy - IT
 IT: { name: 'italy', displayName: 'Italy', flag: '🇮🇹' },
-// Ivory Coast - CI
 CI: { name: 'ivorycoast', displayName: 'Ivory Coast', flag: '🇨🇮' },
-// Jamaica - JM
 JM: { name: 'jamaica', displayName: 'Jamaica', flag: '🇯🇲' },
-// Jordan - JO
 JO: { name: 'jordan', displayName: 'Jordan', flag: '🇯🇴' },
-// Kazakhstan - KZ
 KZ: { name: 'kazakhstan', displayName: 'Kazakhstan', flag: '🇰🇿' },
-// Kenya - KE
 KE: { name: 'kenya', displayName: 'Kenya', flag: '🇰🇪' },
-// Kuwait - KW
 KW: { name: 'kuwait', displayName: 'Kuwait', flag: '🇰🇼' },
-// Kyrgyzstan - KG
 KG: { name: 'kyrgyzstan', displayName: 'Kyrgyzstan', flag: '🇰🇬' },
-// Laos - LA
 LA: { name: 'laos', displayName: 'Laos', flag: '🇱🇦' },
-// Latvia - LV
 LV: { name: 'latvia', displayName: 'Latvia', flag: '🇱🇻' },
-// Lesotho - LS
 LS: { name: 'lesotho', displayName: 'Lesotho', flag: '🇱🇸' },
-// Liberia - LR
 LR: { name: 'liberia', displayName: 'Liberia', flag: '🇱🇷' },
-// Lithuania - LT
 LT: { name: 'lithuania', displayName: 'Lithuania', flag: '🇱🇹' },
-// Luxembourg - LU
 LU: { name: 'luxembourg', displayName: 'Luxembourg', flag: '🇱🇺' },
-// Macau - MO
 MO: { name: 'macau', displayName: 'Macau', flag: '🇲🇴' },
-// Madagascar - MG
 MG: { name: 'madagascar', displayName: 'Madagascar', flag: '🇲🇬' },
-// Malawi - MW
 MW: { name: 'malawi', displayName: 'Malawi', flag: '🇲🇼' },
-// Malaysia - MY
 MY: { name: 'malaysia', displayName: 'Malaysia', flag: '🇲🇾' },
-// Maldives - MV
 MV: { name: 'maldives', displayName: 'Maldives', flag: '🇲🇻' },
-// Mauritania - MR
 MR: { name: 'mauritania', displayName: 'Mauritania', flag: '🇲🇷' },
-// Mauritius - MU
 MU: { name: 'mauritius', displayName: 'Mauritius', flag: '🇲🇺' },
-// Mexico - MX
 MX: { name: 'mexico', displayName: 'Mexico', flag: '🇲🇽' },
-// Moldova - MD
 MD: { name: 'moldova', displayName: 'Moldova', flag: '🇲🇩' },
-// Mongolia - MN
 MN: { name: 'mongolia', displayName: 'Mongolia', flag: '🇲🇳' },
-// Montenegro - ME
 ME: { name: 'montenegro', displayName: 'Montenegro', flag: '🇲🇪' },
-// Morocco - MA
 MA: { name: 'morocco', displayName: 'Morocco', flag: '🇲🇦' },
-// Mozambique - MZ
 MZ: { name: 'mozambique', displayName: 'Mozambique', flag: '🇲🇿' },
-// Namibia - NA
 NA: { name: 'namibia', displayName: 'Namibia', flag: '🇳🇦' },
-// Nepal - NP
 NP: { name: 'nepal', displayName: 'Nepal', flag: '🇳🇵' },
-// Netherlands - NL
 NL: { name: 'netherlands', displayName: 'Netherlands', flag: '🇳🇱' },
-// New Caledonia - NC
 NC: { name: 'newcaledonia', displayName: 'New Caledonia', flag: '🇳🇨' },
-// Nicaragua - NI
 NI: { name: 'nicaragua', displayName: 'Nicaragua', flag: '🇳🇮' },
-// Nigeria - NG
 NG: { name: 'nigeria', displayName: 'Nigeria', flag: '🇳🇬' },
-// North Macedonia - MK
 MK: { name: 'northmacedonia', displayName: 'North Macedonia', flag: '🇲🇰' },
-// Norway - NO
 NO: { name: 'norway', displayName: 'Norway', flag: '🇳🇴' },
-// Oman - OM
 OM: { name: 'oman', displayName: 'Oman', flag: '🇴🇲' },
-// Pakistan - PK
 PK: { name: 'pakistan', displayName: 'Pakistan', flag: '🇵🇰' },
-// Panama - PA
 PA: { name: 'panama', displayName: 'Panama', flag: '🇵🇦' },
-// Papua New Guinea - PG
 PG: { name: 'papuanewguinea', displayName: 'Papua New Guinea', flag: '🇵🇬' },
-// Paraguay - PY
 PY: { name: 'paraguay', displayName: 'Paraguay', flag: '🇵🇾' },
-// Peru - PE
 PE: { name: 'peru', displayName: 'Peru', flag: '🇵🇪' },
-// Philippines - PH
 PH: { name: 'philippines', displayName: 'Philippines', flag: '🇵🇭' },
-// Poland - PL
 PL: { name: 'poland', displayName: 'Poland', flag: '🇵🇱' },
-// Portugal - PT
 PT: { name: 'portugal', displayName: 'Portugal', flag: '🇵🇹' },
-// Puerto Rico - PR
 PR: { name: 'puertorico', displayName: 'Puerto Rico', flag: '🇵🇷' },
-// Reunion - RE
 RE: { name: 'reunion', displayName: 'Reunion', flag: '🇷🇪' },
-// Romania - RO
 RO: { name: 'romania', displayName: 'Romania', flag: '🇷🇴' },
-// Rwanda - RW
 RW: { name: 'rwanda', displayName: 'Rwanda', flag: '🇷🇼' },
-// Saint Kitts and Nevis - KN
 KN: { name: 'saintkittsandnevis', displayName: 'Saint Kitts and Nevis', flag: '🇰🇳' },
-// Saint Lucia - LC
 LC: { name: 'saintlucia', displayName: 'Saint Lucia', flag: '🇱🇨' },
-// Saint Vincent and the Grenadines - VC
 VC: { name: 'saintvincentandgrenadines', displayName: 'Saint Vincent and the Grenadines', flag: '🇻🇨' },
-// Salvador - SV
 SV: { name: 'salvador', displayName: 'Salvador', flag: '🇸🇻' },
-// Samoa - WS
 WS: { name: 'samoa', displayName: 'Samoa', flag: '🇼🇸' },
-// Saudi Arabia - SA
 SA: { name: 'saudiarabia', displayName: 'Saudi Arabia', flag: '🇸🇦' },
-// Senegal - SN
 SN: { name: 'senegal', displayName: 'Senegal', flag: '🇸🇳' },
-// Serbia - RS
 RS: { name: 'serbia', displayName: 'Serbia', flag: '🇷🇸' },
-// Seychelles - SC
 SC: { name: 'seychelles', displayName: 'Seychelles', flag: '🇸🇨' },
-// Sierra Leone - SL
 SL: { name: 'sierraleone', displayName: 'Sierra Leone', flag: '🇸🇱' },
-// Slovakia - SK
 SK: { name: 'slovakia', displayName: 'Slovakia', flag: '🇸🇰' },
-// Slovenia - SI
 SI: { name: 'slovenia', displayName: 'Slovenia', flag: '🇸🇮' },
-// Solomon Islands - SB
 SB: { name: 'solomonislands', displayName: 'Solomon Islands', flag: '🇸🇧' },
-// South Africa - ZA
 ZA: { name: 'southafrica', displayName: 'South Africa', flag: '🇿🇦' },
-// Spain - ES
 ES: { name: 'spain', displayName: 'Spain', flag: '🇪🇸' },
-// Sri Lanka - LK
 LK: { name: 'srilanka', displayName: 'Sri Lanka', flag: '🇱🇰' },
-// Suriname - SR
 SR: { name: 'suriname', displayName: 'Suriname', flag: '🇸🇷' },
-// Swaziland - SZ
 SZ: { name: 'swaziland', displayName: 'Swaziland', flag: '🇸🇿' },
-// Sweden - SE
 SE: { name: 'sweden', displayName: 'Sweden', flag: '🇸🇪' },
-// Taiwan - TW
 TW: { name: 'taiwan', displayName: 'Taiwan', flag: '🇹🇼' },
-// Tajikistan - TJ
 TJ: { name: 'tajikistan', displayName: 'Tajikistan', flag: '🇹🇯' },
-// Tanzania - TZ
 TZ: { name: 'tanzania', displayName: 'Tanzania', flag: '🇹🇿' },
-// Thailand - TH
 TH: { name: 'thailand', displayName: 'Thailand', flag: '🇹🇭' },
-// Trinidad and Tobago - TT
 TT: { name: 'tit', displayName: 'Trinidad and Tobago', flag: '🇹🇹' },
-// Togo - TG
 TG: { name: 'togo', displayName: 'Togo', flag: '🇹🇬' },
-// Tunisia - TN
 TN: { name: 'tunisia', displayName: 'Tunisia', flag: '🇹🇳' },
-// Turkmenistan - TM
 TM: { name: 'turkmenistan', displayName: 'Turkmenistan', flag: '🇹🇲' },
-// Uganda - UG
 UG: { name: 'uganda', displayName: 'Uganda', flag: '🇺🇬' },
-// Uruguay - UY
 UY: { name: 'uruguay', displayName: 'Uruguay', flag: '🇺🇾' },
-// USA - US
 US: { name: 'usa', displayName: 'USA', flag: '🇺🇸' },
-// Uzbekistan - UZ
 UZ: { name: 'uzbekistan', displayName: 'Uzbekistan', flag: '🇺🇿' },
-// Venezuela - VE
 VE: { name: 'venezuela', displayName: 'Venezuela', flag: '🇻🇪' },
-// Vietnam - VN
 VN: { name: 'vietnam', displayName: 'Vietnam', flag: '🇻🇳' },
-// Zambia - ZM
 ZM: { name: 'zambia', displayName: 'Zambia', flag: '🇿🇲' }
 };
 
@@ -786,10 +667,34 @@ rate: info.rate ?? null
 return result;
 }
 
+// ============================================================
+// FIX: Get services with 90% markup and live USD/NGN conversion
+// ============================================================
+
 async function fivesimGetServices(country) {
 const prices = await fivesimGetPrices(country);
-return normalize5SimPrices(prices, country);
+const services = normalize5SimPrices(prices, country);
+
+// Get live USD/NGN rate
+const ngnRate = await fetchLiveNgnRate();
+
+// Apply 90% markup and convert to NGN
+return services.map(svc => {
+const priceInUsd = svc.price;
+const priceWithMarkup = priceInUsd * (1 + config.markupPercent / 100);
+const priceInNgn = priceWithMarkup * ngnRate;
+return {
+...svc,
+price: parseFloat(priceInNgn.toFixed(2)), // Return in NGN
+currency: 'NGN',
+markupPercent: config.markupPercent
+};
+});
 }
+
+// ============================================================
+// FIX: Get price with 90% markup and live USD/NGN conversion
+// ============================================================
 
 async function fivesimGetPrice(service, country) {
 const services = await fivesimGetServices(country);
@@ -817,7 +722,7 @@ const selected = available[0] || matches.sort((a, b) => a.price - b.price)[0];
 
 return {
 price: selected.price,
-currency: 'USD',
+currency: 'NGN',
 stock: selected.stock,
 operator: selected.operator,
 service: selected.service,
@@ -925,7 +830,7 @@ throw new Error('Failed to cancel 5SIM order');
 }
 
 // ============================================================
-// 10. FLUTTERWAVE
+// 11. FLUTTERWAVE
 // ============================================================
 
 const flwClient = axios.create({
@@ -934,7 +839,7 @@ headers: {
 Authorization: `Bearer ${process.env.FLW_SECRET_KEY}`,
 'Content-Type': 'application/json'
 },
-timeout: 60000 // Increased to 60 seconds
+timeout: 60000
 });
 
 async function flwInitializePayment(data) {
@@ -987,7 +892,7 @@ return false;
 }
 
 // ============================================================
-// 11. WALLET
+// 12. WALLET
 // ============================================================
 
 async function walletGetBalance(userId) {
@@ -1070,7 +975,7 @@ client.release();
 }
 
 // ============================================================
-// 12. NUMBER SERVICE
+// 13. NUMBER SERVICE
 // ============================================================
 
 const PURCHASE_STATES = {
@@ -1083,12 +988,14 @@ EXPIRED: 'expired',
 REFUNDED: 'refunded'
 };
 
+// ============================================================
+// FIX: Price calculation uses live rate
+// ============================================================
+
 async function calculatePriceInDb(providerCost, currency = 'USD') {
-const result = await query(
-`SELECT CASE WHEN $2 = 'USD' THEN $1::NUMERIC * $3::NUMERIC * (1 + $4::NUMERIC / 100) ELSE $1::NUMERIC * (1 + $4::NUMERIC / 100) END AS price`,
-[providerCost, currency, config.usdNgnRate, config.markupPercent]
-);
-return parseFloat(result.rows[0].price);
+const ngnRate = await fetchLiveNgnRate();
+const priceInNgn = providerCost * ngnRate * (1 + config.markupPercent / 100);
+return parseFloat(priceInNgn.toFixed(2));
 }
 
 async function numbersBuy(userId, service, country, options = {}) {
@@ -1109,7 +1016,7 @@ return existing.rows[0];
 }
 await client.query('COMMIT');
 
-// Get live 5SIM price
+// Get live 5SIM price (returns USD)
 let providerPrice;
 try {
 providerPrice = await fivesimGetPrice(service, country);
@@ -1121,7 +1028,7 @@ await query(
 throw error;
 }
 
-const customerPrice = await calculatePriceInDb(providerPrice.price, 'USD');
+const customerPrice = await calculatePriceInDb(providerPrice.price, 'NGN');
 
 // Create pending purchase
 await client.query('BEGIN');
@@ -1147,7 +1054,9 @@ await client.query('COMMIT');
 // Buy from 5SIM
 let rental;
 try {
-rental = await fivesimBuyNumber(providerPrice.service, country, options);
+// Use the actual service name (not the full ID) for 5SIM buy
+const serviceName = providerPrice.service || service;
+rental = await fivesimBuyNumber(serviceName, country, options);
 } catch (error) {
 await query(`UPDATE purchases SET status = 'failed', metadata = $1 WHERE id = $2`, [{ error: error.message }, purchaseId]);
 throw new Error('Provider service unavailable');
@@ -1279,7 +1188,7 @@ client.release();
 }
 
 // ============================================================
-// 13. PAYMENT SERVICE
+// 14. PAYMENT SERVICE
 // ============================================================
 
 async function paymentInitializeTopup(userId, amount, email, name) {
@@ -1335,7 +1244,6 @@ return { success: false, error: 'Payment not found' };
 const paymentData = payment.rows[0];
 console.log(`📞 [CALLBACK] Payment found. Status: ${paymentData.status}, Amount: ${paymentData.amount}`);
 
-// Check if payment was cancelled
 if (paymentData.status === 'cancelled') {
 console.log(`ℹ️ [CALLBACK] Payment was cancelled`);
 await client.query('COMMIT');
@@ -1348,7 +1256,6 @@ await client.query('COMMIT');
 return { success: true, alreadyProcessed: true };
 }
 
-// Verify with Flutterwave
 console.log(`📞 [CALLBACK] Verifying with Flutterwave API...`);
 let verification;
 try {
@@ -1377,11 +1284,6 @@ return { success: false, error: 'Verification failed' };
 
 console.log(`✅ [CALLBACK] Verification successful! Crediting wallet...`);
 
-// ============================================================
-// CREDIT THE WALLET
-// ============================================================
-
-// Get user's current balance
 const balance = await client.query(`SELECT wallet_balance FROM users WHERE id = $1 FOR UPDATE`, [paymentData.user_id]);
 if (!balance.rows.length) {
 console.log(`❌ [CALLBACK] User not found: ${paymentData.user_id}`);
@@ -1391,7 +1293,6 @@ return { success: false, error: 'User not found' };
 const before = parseFloat(balance.rows[0].wallet_balance);
 console.log(`📞 [CALLBACK] User balance before: ${before}`);
 
-// Add the payment amount to user's wallet
 const updated = await client.query(
 `UPDATE users SET wallet_balance = wallet_balance + $1::NUMERIC WHERE id = $2 RETURNING wallet_balance`,
 [paymentData.amount, paymentData.user_id]
@@ -1399,13 +1300,11 @@ const updated = await client.query(
 const after = parseFloat(updated.rows[0].wallet_balance);
 console.log(`✅ [CALLBACK] User balance after: ${after}`);
 
-// Mark payment as successful
 await client.query(
 `UPDATE payments SET status = 'successful', flutterwave_transaction_id = $1, processed_at = CURRENT_TIMESTAMP WHERE tx_ref = $2`,
 [transaction_id, tx_ref]
 );
 
-// Record the transaction
 await client.query(
 `INSERT INTO wallet_transactions (user_id, type, amount, balance_before, balance_after, description, reference, metadata) VALUES ($1, 'credit', $2, $3, $4, $5, $6, $7)`,
 [paymentData.user_id, paymentData.amount, before, after, 'Wallet funding via Flutterwave', tx_ref, { payment_id: paymentData.id }]
@@ -1454,7 +1353,7 @@ return paymentProcessCallback(tx_ref, transaction_id);
 }
 
 // ============================================================
-// 14. RECONCILIATION
+// 15. RECONCILIATION
 // ============================================================
 
 async function reconciliationCheck() {
@@ -1478,7 +1377,7 @@ return results;
 }
 
 // ============================================================
-// 15. EXPRESS
+// 16. EXPRESS
 // ============================================================
 
 const app = express();
@@ -1509,7 +1408,7 @@ next();
 });
 
 // ============================================================
-// 16. HEALTH
+// 17. HEALTH
 // ============================================================
 
 app.get('/api/health', async (req, res) => {
@@ -1522,7 +1421,7 @@ res.status(500).json({ status: 'unhealthy', error: 'Database connection failed' 
 });
 
 // ============================================================
-// 17. AUTH
+// 18. AUTH
 // ============================================================
 
 app.get('/api/auth/me', authMiddleware, async (req, res) => {
@@ -1548,7 +1447,7 @@ res.status(500).json({ error: 'Failed to get user' });
 });
 
 // ============================================================
-// 18. WALLET
+// 19. WALLET
 // ============================================================
 
 app.get('/api/wallet', authMiddleware, async (req, res) => {
@@ -1586,7 +1485,7 @@ res.status(500).json({ error: 'Failed to initialize payment' });
 });
 
 // ============================================================
-// 19. COUNTRIES
+// 20. COUNTRIES
 // ============================================================
 
 app.get('/api/numbers/countries', authMiddleware, servicesLimiter, async (req, res) => {
@@ -1604,7 +1503,7 @@ res.status(500).json({ error: 'Failed to get countries' });
 });
 
 // ============================================================
-// 20. SERVICES
+// 21. SERVICES - RETURNS NGN WITH 90% MARKUP
 // ============================================================
 
 app.get('/api/numbers/services', authMiddleware, servicesLimiter, async (req, res) => {
@@ -1619,7 +1518,7 @@ res.status(500).json({ error: 'Failed to get services' });
 });
 
 // ============================================================
-// 21. PRICE
+// 22. PRICE - RETURNS NGN WITH 90% MARKUP
 // ============================================================
 
 app.get('/api/numbers/price', authMiddleware, servicesLimiter, async (req, res) => {
@@ -1628,12 +1527,11 @@ const { service, country } = req.query;
 if (!service || !country) return res.status(400).json({ error: 'Service and country required' });
 
 const provider = await fivesimGetPrice(service, country);
-const customerPrice = await calculatePriceInDb(provider.price, 'USD');
 
 res.json({
 providerCost: provider.price,
 currency: 'NGN',
-customerPrice: customerPrice,
+customerPrice: provider.price,
 service,
 country,
 operator: provider.operator,
@@ -1647,7 +1545,7 @@ res.status(500).json({ error: error.message });
 });
 
 // ============================================================
-// 22. BUY NUMBER
+// 23. BUY NUMBER
 // ============================================================
 
 app.post('/api/numbers/buy', authMiddleware, purchaseLimiter, validate(schemas.buyNumber), async (req, res) => {
@@ -1671,7 +1569,7 @@ res.status(500).json({ error: error.message || 'Failed to purchase number' });
 });
 
 // ============================================================
-// 23. MY RENTALS
+// 24. MY RENTALS
 // ============================================================
 
 app.get('/api/numbers/my-rentals', authMiddleware, async (req, res) => {
@@ -1684,7 +1582,7 @@ res.status(500).json({ error: 'Failed to get rentals' });
 });
 
 // ============================================================
-// 24. STATUS
+// 25. STATUS
 // ============================================================
 
 app.get('/api/numbers/:id/status', authMiddleware, async (req, res) => {
@@ -1717,7 +1615,7 @@ res.status(500).json({ error: 'Failed to get rental status' });
 });
 
 // ============================================================
-// 25. CANCEL
+// 26. CANCEL
 // ============================================================
 
 app.post('/api/numbers/:id/cancel', authMiddleware, async (req, res) => {
@@ -1732,7 +1630,7 @@ res.status(500).json({ error: 'Failed to cancel rental' });
 });
 
 // ============================================================
-// 26. MESSAGES
+// 27. MESSAGES
 // ============================================================
 
 app.get('/api/numbers/:id/messages', authMiddleware, async (req, res) => {
@@ -1751,7 +1649,7 @@ res.json({ messages: [] });
 });
 
 // ============================================================
-// 27. FLUTTERWAVE CALLBACK - WITH CANCELLATION HANDLING
+// 28. FLUTTERWAVE CALLBACK - WITH CANCELLATION HANDLING
 // ============================================================
 
 app.get('/api/payments/callback', async (req, res) => {
@@ -1760,7 +1658,6 @@ const { tx_ref, transaction_id, status, cancel } = req.query;
 
 console.log(`🔔 [CALLBACK] Callback received:`, req.query);
 
-// ✅ USER CANCELLED PAYMENT
 if (cancel === 'true' || status === 'cancelled') {
 console.log(`ℹ️ [CALLBACK] Payment cancelled by user: ${tx_ref || 'unknown'}`);
 if (tx_ref) {
@@ -1772,7 +1669,6 @@ await query(
 return res.redirect(`${config.frontendUrls[0]}/wallet?info=Payment%20cancelled`);
 }
 
-// ❌ Missing parameters
 if (!tx_ref || !transaction_id) {
 console.log(`❌ [CALLBACK] Missing parameters:`, req.query);
 if (tx_ref) {
@@ -1811,7 +1707,7 @@ return res.redirect(`${config.frontendUrls[0]}/wallet?error=Payment%20processing
 });
 
 // ============================================================
-// 28. FLUTTERWAVE WEBHOOK
+// 29. FLUTTERWAVE WEBHOOK
 // ============================================================
 
 app.post('/api/payments/flutterwave-webhook', async (req, res) => {
@@ -1847,7 +1743,7 @@ return res.status(500).send('Webhook failed');
 });
 
 // ============================================================
-// 29. ADMIN
+// 30. ADMIN
 // ============================================================
 
 app.get('/api/admin/users', authMiddleware, adminMiddleware, async (req, res) => {
@@ -1901,7 +1797,7 @@ res.status(500).json({ error: 'Failed to adjust wallet' });
 });
 
 // ============================================================
-// 30. ERRORS
+// 31. ERRORS
 // ============================================================
 
 app.use((req, res) => {
@@ -1914,7 +1810,7 @@ res.status(500).json({ error: 'Internal server error' });
 });
 
 // ============================================================
-// 31. SHUTDOWN
+// 32. SHUTDOWN
 // ============================================================
 
 let serverInstance = null;
@@ -1935,7 +1831,7 @@ process.on('SIGTERM', gracefulShutdown);
 process.on('SIGINT', gracefulShutdown);
 
 // ============================================================
-// 32. START
+// 33. START
 // ============================================================
 
 async function startServer() {
