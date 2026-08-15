@@ -414,67 +414,318 @@ Accept: 'application/json'
 timeout: 30000
 });
 
+// ============================================================
+// VERIFIED 5SIM COUNTRY MAPPING
+// Based on official 5SIM API documentation
+// ============================================================
+
 const FIVESIM_COUNTRIES = {
-US: { name: 'usa', displayName: 'United States', flag: '🇺🇸' },
-GB: { name: 'england', displayName: 'United Kingdom', flag: '🇬🇧' },
-CA: { name: 'canada', displayName: 'Canada', flag: '🇨🇦' },
-AU: { name: 'australia', displayName: 'Australia', flag: '🇦🇺' },
-FR: { name: 'france', displayName: 'France', flag: '🇫🇷' },
-DE: { name: 'germany', displayName: 'Germany', flag: '🇩🇪' },
-IT: { name: 'italy', displayName: 'Italy', flag: '🇮🇹' },
-ES: { name: 'spain', displayName: 'Spain', flag: '🇪🇸' },
-NL: { name: 'netherlands', displayName: 'Netherlands', flag: '🇳🇱' },
-BE: { name: 'belgium', displayName: 'Belgium', flag: '🇧🇪' },
-CH: { name: 'switzerland', displayName: 'Switzerland', flag: '🇨🇭' },
-AT: { name: 'austria', displayName: 'Austria', flag: '🇦🇹' },
-SE: { name: 'sweden', displayName: 'Sweden', flag: '🇸🇪' },
-NO: { name: 'norway', displayName: 'Norway', flag: '🇳🇴' },
-DK: { name: 'denmark', displayName: 'Denmark', flag: '🇩🇰' },
-FI: { name: 'finland', displayName: 'Finland', flag: '🇫🇮' },
-IE: { name: 'ireland', displayName: 'Ireland', flag: '🇮🇪' },
-PT: { name: 'portugal', displayName: 'Portugal', flag: '🇵🇹' },
-PL: { name: 'poland', displayName: 'Poland', flag: '🇵🇱' },
-CZ: { name: 'czech-republic', displayName: 'Czech Republic', flag: '🇨🇿' },
-HU: { name: 'hungary', displayName: 'Hungary', flag: '🇭🇺' },
-RO: { name: 'romania', displayName: 'Romania', flag: '🇷🇴' },
-BG: { name: 'bulgaria', displayName: 'Bulgaria', flag: '🇧🇬' },
-GR: { name: 'greece', displayName: 'Greece', flag: '🇬🇷' },
-IN: { name: 'india', displayName: 'India', flag: '🇮🇳' },
-ID: { name: 'indonesia', displayName: 'Indonesia', flag: '🇮🇩' },
-PK: { name: 'pakistan', displayName: 'Pakistan', flag: '🇵🇰' },
-BD: { name: 'bangladesh', displayName: 'Bangladesh', flag: '🇧🇩' },
-VN: { name: 'vietnam', displayName: 'Vietnam', flag: '🇻🇳' },
-PH: { name: 'philippines', displayName: 'Philippines', flag: '🇵🇭' },
-MY: { name: 'malaysia', displayName: 'Malaysia', flag: '🇲🇾' },
-TH: { name: 'thailand', displayName: 'Thailand', flag: '🇹🇭' },
-SG: { name: 'singapore', displayName: 'Singapore', flag: '🇸🇬' },
-JP: { name: 'japan', displayName: 'Japan', flag: '🇯🇵' },
-KR: { name: 'south-korea', displayName: 'South Korea', flag: '🇰🇷' },
-AE: { name: 'uae', displayName: 'UAE', flag: '🇦🇪' },
-SA: { name: 'saudi-arabia', displayName: 'Saudi Arabia', flag: '🇸🇦' },
-TR: { name: 'turkey', displayName: 'Turkey', flag: '🇹🇷' },
-BR: { name: 'brazil', displayName: 'Brazil', flag: '🇧🇷' },
+// Afghanistan - AF
+AF: { name: 'afghanistan', displayName: 'Afghanistan', flag: '🇦🇫' },
+// Albania - AL
+AL: { name: 'albania', displayName: 'Albania', flag: '🇦🇱' },
+// Algeria - DZ
+DZ: { name: 'algeria', displayName: 'Algeria', flag: '🇩🇿' },
+// Angola - AO
+AO: { name: 'angola', displayName: 'Angola', flag: '🇦🇴' },
+// Antigua and Barbuda - AG
+AG: { name: 'antiguaandbarbuda', displayName: 'Antigua and Barbuda', flag: '🇦🇬' },
+// Argentina - AR
 AR: { name: 'argentina', displayName: 'Argentina', flag: '🇦🇷' },
-CO: { name: 'colombia', displayName: 'Colombia', flag: '🇨🇴' },
+// Armenia - AM
+AM: { name: 'armenia', displayName: 'Armenia', flag: '🇦🇲' },
+// Aruba - AW
+AW: { name: 'aruba', displayName: 'Aruba', flag: '🇦🇼' },
+// Australia - AU
+AU: { name: 'australia', displayName: 'Australia', flag: '🇦🇺' },
+// Austria - AT
+AT: { name: 'austria', displayName: 'Austria', flag: '🇦🇹' },
+// Azerbaijan - AZ
+AZ: { name: 'azerbaijan', displayName: 'Azerbaijan', flag: '🇦🇿' },
+// Bahamas - BS
+BS: { name: 'bahamas', displayName: 'Bahamas', flag: '🇧🇸' },
+// Bahrain - BH
+BH: { name: 'bahrain', displayName: 'Bahrain', flag: '🇧🇭' },
+// Bangladesh - BD
+BD: { name: 'bangladesh', displayName: 'Bangladesh', flag: '🇧🇩' },
+// Barbados - BB
+BB: { name: 'barbados', displayName: 'Barbados', flag: '🇧🇧' },
+// Belgium - BE
+BE: { name: 'belgium', displayName: 'Belgium', flag: '🇧🇪' },
+// Belize - BZ
+BZ: { name: 'belize', displayName: 'Belize', flag: '🇧🇿' },
+// Benin - BJ
+BJ: { name: 'benin', displayName: 'Benin', flag: '🇧🇯' },
+// Bhutan - BT
+BT: { name: 'bhutane', displayName: 'Bhutan', flag: '🇧🇹' },
+// Bosnia and Herzegovina - BA
+BA: { name: 'bih', displayName: 'Bosnia and Herzegovina', flag: '🇧🇦' },
+// Bolivia - BO
+BO: { name: 'bolivia', displayName: 'Bolivia', flag: '🇧🇴' },
+// Botswana - BW
+BW: { name: 'botswana', displayName: 'Botswana', flag: '🇧🇼' },
+// Brazil - BR
+BR: { name: 'brazil', displayName: 'Brazil', flag: '🇧🇷' },
+// Bulgaria - BG
+BG: { name: 'bulgaria', displayName: 'Bulgaria', flag: '🇧🇬' },
+// Burkina Faso - BF
+BF: { name: 'burkinafaso', displayName: 'Burkina Faso', flag: '🇧🇫' },
+// Burundi - BI
+BI: { name: 'burundi', displayName: 'Burundi', flag: '🇧🇮' },
+// Cambodia - KH
+KH: { name: 'cambodia', displayName: 'Cambodia', flag: '🇰🇭' },
+// Cameroon - CM
+CM: { name: 'cameroon', displayName: 'Cameroon', flag: '🇨🇲' },
+// Canada - CA
+CA: { name: 'canada', displayName: 'Canada', flag: '🇨🇦' },
+// Cape Verde - CV
+CV: { name: 'capeverde', displayName: 'Cape Verde', flag: '🇨🇻' },
+// Chad - TD
+TD: { name: 'chad', displayName: 'Chad', flag: '🇹🇩' },
+// Chile - CL
 CL: { name: 'chile', displayName: 'Chile', flag: '🇨🇱' },
-PE: { name: 'peru', displayName: 'Peru', flag: '🇵🇪' },
-ZA: { name: 'south-africa', displayName: 'South Africa', flag: '🇿🇦' },
-NG: { name: 'nigeria', displayName: 'Nigeria', flag: '🇳🇬' },
-GH: { name: 'ghana', displayName: 'Ghana', flag: '🇬🇭' },
-KE: { name: 'kenya', displayName: 'Kenya', flag: '🇰🇪' },
+// Colombia - CO
+CO: { name: 'colombia', displayName: 'Colombia', flag: '🇨🇴' },
+// Comoros - KM
+KM: { name: 'comoros', displayName: 'Comoros', flag: '🇰🇲' },
+// Congo - CG
+CG: { name: 'congo', displayName: 'Congo', flag: '🇨🇬' },
+// Costa Rica - CR
+CR: { name: 'costarica', displayName: 'Costa Rica', flag: '🇨🇷' },
+// Croatia - HR
+HR: { name: 'croatia', displayName: 'Croatia', flag: '🇭🇷' },
+// Cyprus - CY
+CY: { name: 'cyprus', displayName: 'Cyprus', flag: '🇨🇾' },
+// Czechia - CZ
+CZ: { name: 'czech', displayName: 'Czechia', flag: '🇨🇿' },
+// Denmark - DK
+DK: { name: 'denmark', displayName: 'Denmark', flag: '🇩🇰' },
+// Djibouti - DJ
+DJ: { name: 'djibouti', displayName: 'Djibouti', flag: '🇩🇯' },
+// Dominican Republic - DO
+DO: { name: 'dominicana', displayName: 'Dominican Republic', flag: '🇩🇴' },
+// East Timor - TL
+TL: { name: 'easttimor', displayName: 'East Timor', flag: '🇹🇱' },
+// Ecuador - EC
+EC: { name: 'ecuador', displayName: 'Ecuador', flag: '🇪🇨' },
+// Egypt - EG
 EG: { name: 'egypt', displayName: 'Egypt', flag: '🇪🇬' },
-MA: { name: 'morocco', displayName: 'Morocco', flag: '🇲🇦' },
-TN: { name: 'tunisia', displayName: 'Tunisia', flag: '🇹🇳' },
-UG: { name: 'uganda', displayName: 'Uganda', flag: '🇺🇬' },
-TZ: { name: 'tanzania', displayName: 'Tanzania', flag: '🇹🇿' },
-ZM: { name: 'zambia', displayName: 'Zambia', flag: '🇿🇲' },
-ZW: { name: 'zimbabwe', displayName: 'Zimbabwe', flag: '🇿🇼' },
-NZ: { name: 'new-zealand', displayName: 'New Zealand', flag: '🇳🇿' },
-MX: { name: 'mexico', displayName: 'Mexico', flag: '🇲🇽' },
-PR: { name: 'puerto-rico', displayName: 'Puerto Rico', flag: '🇵🇷' },
+// England - GB
+GB: { name: 'england', displayName: 'England', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿' },
+// Equatorial Guinea - GQ
+GQ: { name: 'equatorialguinea', displayName: 'Equatorial Guinea', flag: '🇬🇶' },
+// Estonia - EE
+EE: { name: 'estonia', displayName: 'Estonia', flag: '🇪🇪' },
+// Ethiopia - ET
+ET: { name: 'ethiopia', displayName: 'Ethiopia', flag: '🇪🇹' },
+// Finland - FI
+FI: { name: 'finland', displayName: 'Finland', flag: '🇫🇮' },
+// France - FR
+FR: { name: 'france', displayName: 'France', flag: '🇫🇷' },
+// French Guiana - GF
+GF: { name: 'frenchguiana', displayName: 'French Guiana', flag: '🇬🇫' },
+// Gabon - GA
+GA: { name: 'gabon', displayName: 'Gabon', flag: '🇬🇦' },
+// Gambia - GM
+GM: { name: 'gambia', displayName: 'Gambia', flag: '🇬🇲' },
+// Georgia - GE
+GE: { name: 'georgia', displayName: 'Georgia', flag: '🇬🇪' },
+// Germany - DE
+DE: { name: 'germany', displayName: 'Germany', flag: '🇩🇪' },
+// Ghana - GH
+GH: { name: 'ghana', displayName: 'Ghana', flag: '🇬🇭' },
+// Greece - GR
+GR: { name: 'greece', displayName: 'Greece', flag: '🇬🇷' },
+// Guadeloupe - GP
+GP: { name: 'guadeloupe', displayName: 'Guadeloupe', flag: '🇬🇵' },
+// Guatemala - GT
+GT: { name: 'guatemala', displayName: 'Guatemala', flag: '🇬🇹' },
+// Guinea - GN
+GN: { name: 'guinea', displayName: 'Guinea', flag: '🇬🇳' },
+// Guinea-Bissau - GW
+GW: { name: 'guineabissau', displayName: 'Guinea-Bissau', flag: '🇬🇼' },
+// Guyana - GY
+GY: { name: 'guyana', displayName: 'Guyana', flag: '🇬🇾' },
+// Haiti - HT
+HT: { name: 'haiti', displayName: 'Haiti', flag: '🇭🇹' },
+// Honduras - HN
+HN: { name: 'honduras', displayName: 'Honduras', flag: '🇭🇳' },
+// Hong Kong - HK
+HK: { name: 'hongkong', displayName: 'Hong Kong', flag: '🇭🇰' },
+// Hungary - HU
+HU: { name: 'hungary', displayName: 'Hungary', flag: '🇭🇺' },
+// India - IN
+IN: { name: 'india', displayName: 'India', flag: '🇮🇳' },
+// Indonesia - ID
+ID: { name: 'indonesia', displayName: 'Indonesia', flag: '🇮🇩' },
+// Ireland - IE
+IE: { name: 'ireland', displayName: 'Ireland', flag: '🇮🇪' },
+// Israel - IL
 IL: { name: 'israel', displayName: 'Israel', flag: '🇮🇱' },
-HK: { name: 'hong-kong', displayName: 'Hong Kong', flag: '🇭🇰' },
-TW: { name: 'taiwan', displayName: 'Taiwan', flag: '🇹🇼' }
+// Italy - IT
+IT: { name: 'italy', displayName: 'Italy', flag: '🇮🇹' },
+// Ivory Coast - CI
+CI: { name: 'ivorycoast', displayName: 'Ivory Coast', flag: '🇨🇮' },
+// Jamaica - JM
+JM: { name: 'jamaica', displayName: 'Jamaica', flag: '🇯🇲' },
+// Jordan - JO
+JO: { name: 'jordan', displayName: 'Jordan', flag: '🇯🇴' },
+// Kazakhstan - KZ
+KZ: { name: 'kazakhstan', displayName: 'Kazakhstan', flag: '🇰🇿' },
+// Kenya - KE
+KE: { name: 'kenya', displayName: 'Kenya', flag: '🇰🇪' },
+// Kuwait - KW
+KW: { name: 'kuwait', displayName: 'Kuwait', flag: '🇰🇼' },
+// Kyrgyzstan - KG
+KG: { name: 'kyrgyzstan', displayName: 'Kyrgyzstan', flag: '🇰🇬' },
+// Laos - LA
+LA: { name: 'laos', displayName: 'Laos', flag: '🇱🇦' },
+// Latvia - LV
+LV: { name: 'latvia', displayName: 'Latvia', flag: '🇱🇻' },
+// Lesotho - LS
+LS: { name: 'lesotho', displayName: 'Lesotho', flag: '🇱🇸' },
+// Liberia - LR
+LR: { name: 'liberia', displayName: 'Liberia', flag: '🇱🇷' },
+// Lithuania - LT
+LT: { name: 'lithuania', displayName: 'Lithuania', flag: '🇱🇹' },
+// Luxembourg - LU
+LU: { name: 'luxembourg', displayName: 'Luxembourg', flag: '🇱🇺' },
+// Macau - MO
+MO: { name: 'macau', displayName: 'Macau', flag: '🇲🇴' },
+// Madagascar - MG
+MG: { name: 'madagascar', displayName: 'Madagascar', flag: '🇲🇬' },
+// Malawi - MW
+MW: { name: 'malawi', displayName: 'Malawi', flag: '🇲🇼' },
+// Malaysia - MY
+MY: { name: 'malaysia', displayName: 'Malaysia', flag: '🇲🇾' },
+// Maldives - MV
+MV: { name: 'maldives', displayName: 'Maldives', flag: '🇲🇻' },
+// Mauritania - MR
+MR: { name: 'mauritania', displayName: 'Mauritania', flag: '🇲🇷' },
+// Mauritius - MU
+MU: { name: 'mauritius', displayName: 'Mauritius', flag: '🇲🇺' },
+// Mexico - MX
+MX: { name: 'mexico', displayName: 'Mexico', flag: '🇲🇽' },
+// Moldova - MD
+MD: { name: 'moldova', displayName: 'Moldova', flag: '🇲🇩' },
+// Mongolia - MN
+MN: { name: 'mongolia', displayName: 'Mongolia', flag: '🇲🇳' },
+// Montenegro - ME
+ME: { name: 'montenegro', displayName: 'Montenegro', flag: '🇲🇪' },
+// Morocco - MA
+MA: { name: 'morocco', displayName: 'Morocco', flag: '🇲🇦' },
+// Mozambique - MZ
+MZ: { name: 'mozambique', displayName: 'Mozambique', flag: '🇲🇿' },
+// Namibia - NA
+NA: { name: 'namibia', displayName: 'Namibia', flag: '🇳🇦' },
+// Nepal - NP
+NP: { name: 'nepal', displayName: 'Nepal', flag: '🇳🇵' },
+// Netherlands - NL
+NL: { name: 'netherlands', displayName: 'Netherlands', flag: '🇳🇱' },
+// New Caledonia - NC
+NC: { name: 'newcaledonia', displayName: 'New Caledonia', flag: '🇳🇨' },
+// Nicaragua - NI
+NI: { name: 'nicaragua', displayName: 'Nicaragua', flag: '🇳🇮' },
+// Nigeria - NG
+NG: { name: 'nigeria', displayName: 'Nigeria', flag: '🇳🇬' },
+// North Macedonia - MK
+MK: { name: 'northmacedonia', displayName: 'North Macedonia', flag: '🇲🇰' },
+// Norway - NO
+NO: { name: 'norway', displayName: 'Norway', flag: '🇳🇴' },
+// Oman - OM
+OM: { name: 'oman', displayName: 'Oman', flag: '🇴🇲' },
+// Pakistan - PK
+PK: { name: 'pakistan', displayName: 'Pakistan', flag: '🇵🇰' },
+// Panama - PA
+PA: { name: 'panama', displayName: 'Panama', flag: '🇵🇦' },
+// Papua New Guinea - PG
+PG: { name: 'papuanewguinea', displayName: 'Papua New Guinea', flag: '🇵🇬' },
+// Paraguay - PY
+PY: { name: 'paraguay', displayName: 'Paraguay', flag: '🇵🇾' },
+// Peru - PE
+PE: { name: 'peru', displayName: 'Peru', flag: '🇵🇪' },
+// Philippines - PH
+PH: { name: 'philippines', displayName: 'Philippines', flag: '🇵🇭' },
+// Poland - PL
+PL: { name: 'poland', displayName: 'Poland', flag: '🇵🇱' },
+// Portugal - PT
+PT: { name: 'portugal', displayName: 'Portugal', flag: '🇵🇹' },
+// Puerto Rico - PR
+PR: { name: 'puertorico', displayName: 'Puerto Rico', flag: '🇵🇷' },
+// Reunion - RE
+RE: { name: 'reunion', displayName: 'Reunion', flag: '🇷🇪' },
+// Romania - RO
+RO: { name: 'romania', displayName: 'Romania', flag: '🇷🇴' },
+// Rwanda - RW
+RW: { name: 'rwanda', displayName: 'Rwanda', flag: '🇷🇼' },
+// Saint Kitts and Nevis - KN
+KN: { name: 'saintkittsandnevis', displayName: 'Saint Kitts and Nevis', flag: '🇰🇳' },
+// Saint Lucia - LC
+LC: { name: 'saintlucia', displayName: 'Saint Lucia', flag: '🇱🇨' },
+// Saint Vincent and the Grenadines - VC
+VC: { name: 'saintvincentandgrenadines', displayName: 'Saint Vincent and the Grenadines', flag: '🇻🇨' },
+// Salvador - SV
+SV: { name: 'salvador', displayName: 'Salvador', flag: '🇸🇻' },
+// Samoa - WS
+WS: { name: 'samoa', displayName: 'Samoa', flag: '🇼🇸' },
+// Saudi Arabia - SA
+SA: { name: 'saudiarabia', displayName: 'Saudi Arabia', flag: '🇸🇦' },
+// Senegal - SN
+SN: { name: 'senegal', displayName: 'Senegal', flag: '🇸🇳' },
+// Serbia - RS
+RS: { name: 'serbia', displayName: 'Serbia', flag: '🇷🇸' },
+// Seychelles - SC
+SC: { name: 'seychelles', displayName: 'Seychelles', flag: '🇸🇨' },
+// Sierra Leone - SL
+SL: { name: 'sierraleone', displayName: 'Sierra Leone', flag: '🇸🇱' },
+// Slovakia - SK
+SK: { name: 'slovakia', displayName: 'Slovakia', flag: '🇸🇰' },
+// Slovenia - SI
+SI: { name: 'slovenia', displayName: 'Slovenia', flag: '🇸🇮' },
+// Solomon Islands - SB
+SB: { name: 'solomonislands', displayName: 'Solomon Islands', flag: '🇸🇧' },
+// South Africa - ZA
+ZA: { name: 'southafrica', displayName: 'South Africa', flag: '🇿🇦' },
+// Spain - ES
+ES: { name: 'spain', displayName: 'Spain', flag: '🇪🇸' },
+// Sri Lanka - LK
+LK: { name: 'srilanka', displayName: 'Sri Lanka', flag: '🇱🇰' },
+// Suriname - SR
+SR: { name: 'suriname', displayName: 'Suriname', flag: '🇸🇷' },
+// Swaziland - SZ
+SZ: { name: 'swaziland', displayName: 'Swaziland', flag: '🇸🇿' },
+// Sweden - SE
+SE: { name: 'sweden', displayName: 'Sweden', flag: '🇸🇪' },
+// Taiwan - TW
+TW: { name: 'taiwan', displayName: 'Taiwan', flag: '🇹🇼' },
+// Tajikistan - TJ
+TJ: { name: 'tajikistan', displayName: 'Tajikistan', flag: '🇹🇯' },
+// Tanzania - TZ
+TZ: { name: 'tanzania', displayName: 'Tanzania', flag: '🇹🇿' },
+// Thailand - TH
+TH: { name: 'thailand', displayName: 'Thailand', flag: '🇹🇭' },
+// Trinidad and Tobago - TT
+TT: { name: 'tit', displayName: 'Trinidad and Tobago', flag: '🇹🇹' },
+// Togo - TG
+TG: { name: 'togo', displayName: 'Togo', flag: '🇹🇬' },
+// Tunisia - TN
+TN: { name: 'tunisia', displayName: 'Tunisia', flag: '🇹🇳' },
+// Turkmenistan - TM
+TM: { name: 'turkmenistan', displayName: 'Turkmenistan', flag: '🇹🇲' },
+// Uganda - UG
+UG: { name: 'uganda', displayName: 'Uganda', flag: '🇺🇬' },
+// Uruguay - UY
+UY: { name: 'uruguay', displayName: 'Uruguay', flag: '🇺🇾' },
+// USA - US
+US: { name: 'usa', displayName: 'USA', flag: '🇺🇸' },
+// Uzbekistan - UZ
+UZ: { name: 'uzbekistan', displayName: 'Uzbekistan', flag: '🇺🇿' },
+// Venezuela - VE
+VE: { name: 'venezuela', displayName: 'Venezuela', flag: '🇻🇪' },
+// Vietnam - VN
+VN: { name: 'vietnam', displayName: 'Vietnam', flag: '🇻🇳' },
+// Zambia - ZM
+ZM: { name: 'zambia', displayName: 'Zambia', flag: '🇿🇲' }
 };
 
 function resolve5SimCountry(country) {
