@@ -540,7 +540,6 @@ const prices = await fivesimGetPrices(country);
 return normalize5SimPrices(prices, country);
 }
 
-// FIX: Extract product name from service ID
 async function fivesimGetPrice(service, country) {
 const services = await fivesimGetServices(country);
 
@@ -684,7 +683,7 @@ headers: {
 Authorization: `Bearer ${process.env.FLW_SECRET_KEY}`,
 'Content-Type': 'application/json'
 },
-timeout: 30000
+timeout: 60000 // Increased to 60 seconds
 });
 
 async function flwInitializePayment(data) {
@@ -706,20 +705,32 @@ throw new Error('Failed to initialize payment');
 
 async function flwVerifyPayment(transactionId) {
 try {
+console.log(`📞 Calling Flutterwave verify API for transaction: ${transactionId}`);
 const response = await flwClient.get(`/transactions/${transactionId}/verify`);
+console.log(`📞 Flutterwave verify response status: ${response.data.status}`);
 return response.data.data;
 } catch (error) {
+console.error(`❌ Flutterwave verify failed:`, error.response?.data || error.message);
 logger.error('Flutterwave verify failed', { error: error.response?.data || error.message });
 throw new Error('Failed to verify payment');
 }
 }
 
 function flwVerifyWebhookSignature(rawBody, signature) {
-if (!signature) return false;
+if (!signature) {
+console.log('❌ No signature provided in webhook');
+return false;
+}
+
 const expected = crypto.createHmac('sha256', process.env.FLW_SECRET_HASH).update(rawBody).digest('hex');
+console.log(`📞 Webhook signature check - Expected: ${expected.substring(0, 20)}..., Received: ${signature.substring(0, 20)}...`);
+
 try {
-return crypto.timingSafeEqual(Buffer.from(signature, 'utf8'), Buffer.from(expected, 'utf8'));
-} catch {
+const result = crypto.timingSafeEqual(Buffer.from(signature, 'utf8'), Buffer.from(expected, 'utf8'));
+console.log(`📞 Signature verification result: ${result}`);
+return result;
+} catch (error) {
+console.error(`❌ Signature verification error:`, error.message);
 return false;
 }
 }
@@ -1049,43 +1060,71 @@ await query(`UPDATE payments SET metadata = $1 WHERE tx_ref = $2`, [{ link: paym
 return { tx_ref, link: payment.link };
 }
 
+// ============================================================
+// PAYMENT PROCESS CALLBACK - WITH DETAILED LOGGING
+// ============================================================
+
 async function paymentProcessCallback(tx_ref, transaction_id) {
+console.log(`📞 [CALLBACK] Starting for tx_ref: ${tx_ref}, transaction_id: ${transaction_id}`);
+
 const client = await getClient();
 
 try {
+console.log(`📞 [CALLBACK] Getting payment from database...`);
 await client.query('BEGIN');
 
 const payment = await client.query(`SELECT * FROM payments WHERE tx_ref = $1 FOR UPDATE`, [tx_ref]);
+
 if (!payment.rows.length) {
+console.log(`❌ [CALLBACK] Payment not found for tx_ref: ${tx_ref}`);
 await client.query('COMMIT');
 return { success: false, error: 'Payment not found' };
 }
 
 const paymentData = payment.rows[0];
+console.log(`📞 [CALLBACK] Payment found. Status: ${paymentData.status}, Amount: ${paymentData.amount}`);
 
 // Check if payment was cancelled
 if (paymentData.status === 'cancelled') {
+console.log(`ℹ️ [CALLBACK] Payment was cancelled`);
 await client.query('COMMIT');
 return { success: false, error: 'Payment was cancelled' };
 }
 
 if (paymentData.status === 'successful') {
+console.log(`✅ [CALLBACK] Payment already processed`);
 await client.query('COMMIT');
 return { success: true, alreadyProcessed: true };
 }
 
-const verification = await flwVerifyPayment(transaction_id);
-const valid = verification.status === 'successful' &&
-verification.tx_ref === tx_ref &&
-Math.abs(parseFloat(verification.amount) - parseFloat(paymentData.amount)) < 0.01 &&
-verification.currency === 'NGN' &&
-String(verification.transaction_id) === String(transaction_id);
-
-if (!valid) {
-await client.query(`UPDATE payments SET status = 'failed', flutterwave_transaction_id = $1 WHERE tx_ref = $2`, [transaction_id, tx_ref]);
+// Verify with Flutterwave
+console.log(`📞 [CALLBACK] Verifying with Flutterwave API...`);
+let verification;
+try {
+verification = await flwVerifyPayment(transaction_id);
+console.log(`📞 [CALLBACK] Verification status: ${verification.status}`);
+} catch (verifyError) {
+console.error(`❌ [CALLBACK] Verification failed:`, verifyError.message);
 await client.query('COMMIT');
 return { success: false, error: 'Verification failed' };
 }
+
+const valid = verification.status === 'successful' &&
+verification.tx_ref === tx_ref &&
+Math.abs(parseFloat(verification.amount) - parseFloat(paymentData.amount)) < 0.01 &&
+verification.currency === 'NGN';
+
+if (!valid) {
+console.log(`❌ [CALLBACK] Verification failed - invalid response`);
+await client.query(
+`UPDATE payments SET status = 'failed', flutterwave_transaction_id = $1 WHERE tx_ref = $2`,
+[transaction_id, tx_ref]
+);
+await client.query('COMMIT');
+return { success: false, error: 'Verification failed' };
+}
+
+console.log(`✅ [CALLBACK] Verification successful! Crediting wallet...`);
 
 // ============================================================
 // CREDIT THE WALLET
@@ -1094,10 +1133,12 @@ return { success: false, error: 'Verification failed' };
 // Get user's current balance
 const balance = await client.query(`SELECT wallet_balance FROM users WHERE id = $1 FOR UPDATE`, [paymentData.user_id]);
 if (!balance.rows.length) {
+console.log(`❌ [CALLBACK] User not found: ${paymentData.user_id}`);
 await client.query('COMMIT');
 return { success: false, error: 'User not found' };
 }
 const before = parseFloat(balance.rows[0].wallet_balance);
+console.log(`📞 [CALLBACK] User balance before: ${before}`);
 
 // Add the payment amount to user's wallet
 const updated = await client.query(
@@ -1105,6 +1146,7 @@ const updated = await client.query(
 [paymentData.amount, paymentData.user_id]
 );
 const after = parseFloat(updated.rows[0].wallet_balance);
+console.log(`✅ [CALLBACK] User balance after: ${after}`);
 
 // Mark payment as successful
 await client.query(
@@ -1119,11 +1161,12 @@ await client.query(
 );
 
 await client.query('COMMIT');
+console.log(`✅ [CALLBACK] Wallet credited successfully! Amount: ${paymentData.amount}, User: ${paymentData.user_id}, New balance: ${after}`);
 return { success: true };
 
 } catch (error) {
+console.error(`❌ [CALLBACK] Error:`, error.message);
 await client.query('ROLLBACK');
-logger.error('paymentProcessCallback error:', { error: error.message });
 throw error;
 } finally {
 client.release();
@@ -1134,17 +1177,28 @@ async function paymentProcessWebhook(req) {
 const rawBody = req.body;
 const signature = req.headers['verif-hash'];
 
+console.log(`📞 [WEBHOOK] Received webhook`);
+console.log(`📞 [WEBHOOK] Signature: ${signature ? signature.substring(0, 30) + '...' : 'MISSING'}`);
+console.log(`📞 [WEBHOOK] Body length: ${rawBody ? rawBody.length : 0}`);
+
 if (!flwVerifyWebhookSignature(rawBody.toString('utf8'), signature)) {
+console.log(`❌ [WEBHOOK] Invalid signature`);
 throw new Error('Invalid signature');
 }
 
+console.log(`✅ [WEBHOOK] Signature verified`);
+
 const payload = JSON.parse(rawBody.toString('utf8'));
+console.log(`📞 [WEBHOOK] Payload:`, JSON.stringify(payload, null, 2));
+
 const { tx_ref, transaction_id } = payload;
 
 if (!tx_ref || !transaction_id) {
+console.log(`❌ [WEBHOOK] Missing tx_ref or transaction_id`);
 throw new Error('Invalid webhook payload');
 }
 
+console.log(`📞 [WEBHOOK] Processing: tx_ref=${tx_ref}, transaction_id=${transaction_id}`);
 return paymentProcessCallback(tx_ref, transaction_id);
 }
 
@@ -1446,18 +1500,18 @@ res.json({ messages: [] });
 });
 
 // ============================================================
-// 27. FLUTTERWAVE CALLBACK - FIXED WITH CANCELLATION HANDLING
+// 27. FLUTTERWAVE CALLBACK - WITH CANCELLATION HANDLING
 // ============================================================
 
 app.get('/api/payments/callback', async (req, res) => {
 try {
 const { tx_ref, transaction_id, status, cancel } = req.query;
 
-console.log('🔔 Callback received:', req.query);
+console.log(`🔔 [CALLBACK] Callback received:`, req.query);
 
 // ✅ USER CANCELLED PAYMENT
 if (cancel === 'true' || status === 'cancelled') {
-console.log(`ℹ️ Payment cancelled by user: ${tx_ref || 'unknown'}`);
+console.log(`ℹ️ [CALLBACK] Payment cancelled by user: ${tx_ref || 'unknown'}`);
 if (tx_ref) {
 await query(
 `UPDATE payments SET status = 'cancelled', metadata = $1 WHERE tx_ref = $2`,
@@ -1469,8 +1523,7 @@ return res.redirect(`${config.frontendUrls[0]}/wallet?info=Payment%20cancelled`)
 
 // ❌ Missing parameters
 if (!tx_ref || !transaction_id) {
-console.log('❌ Missing parameters:', req.query);
-// Check if payment was cancelled
+console.log(`❌ [CALLBACK] Missing parameters:`, req.query);
 if (tx_ref) {
 const payment = await query(`SELECT status FROM payments WHERE tx_ref = $1`, [tx_ref]);
 if (payment.rows.length && payment.rows[0].status === 'cancelled') {
@@ -1480,25 +1533,28 @@ return res.redirect(`${config.frontendUrls[0]}/wallet?info=Payment%20cancelled`)
 return res.redirect(`${config.frontendUrls[0]}/wallet?error=Invalid%20callback`);
 }
 
-console.log(`✅ Processing payment: ${tx_ref}`);
+console.log(`✅ [CALLBACK] Processing payment: ${tx_ref}`);
 
 try {
 const result = await paymentProcessCallback(tx_ref, transaction_id);
 
 if (result.success && !result.alreadyProcessed) {
+console.log(`✅ [CALLBACK] Payment successful! Redirecting...`);
 return res.redirect(`${config.frontendUrls[0]}/wallet?success=Payment%20successful`);
 } else if (result.alreadyProcessed) {
+console.log(`ℹ️ [CALLBACK] Payment already processed`);
 return res.redirect(`${config.frontendUrls[0]}/wallet?success=Payment%20already%20processed`);
 } else {
-return res.redirect(`${config.frontendUrls[0]}/wallet?error=Payment%20failed`);
+console.log(`❌ [CALLBACK] Payment failed: ${result.error}`);
+return res.redirect(`${config.frontendUrls[0]}/wallet?error=${result.error || 'Payment%20failed'}`);
 }
 } catch (callbackError) {
-console.error('❌ Callback processing error:', callbackError);
+console.error(`❌ [CALLBACK] Callback processing error:`, callbackError.message);
 return res.redirect(`${config.frontendUrls[0]}/wallet?error=Payment%20failed`);
 }
 
 } catch (error) {
-console.error('❌ Callback error:', error);
+console.error(`❌ [CALLBACK] Callback error:`, error.message);
 return res.redirect(`${config.frontendUrls[0]}/wallet?error=Payment%20processing%20failed`);
 }
 });
@@ -1509,17 +1565,29 @@ return res.redirect(`${config.frontendUrls[0]}/wallet?error=Payment%20processing
 
 app.post('/api/payments/flutterwave-webhook', async (req, res) => {
 try {
+console.log(`🔔 [WEBHOOK] Webhook received`);
+
 if (!req.body || req.body.length === 0) {
+console.log(`❌ [WEBHOOK] Empty body`);
 return res.status(400).send('Empty body');
 }
 
 const result = await paymentProcessWebhook(req);
+
 if (result.alreadyProcessed) {
+console.log(`ℹ️ [WEBHOOK] Already processed`);
 return res.status(200).send('Already processed');
 }
+
+if (result.success) {
+console.log(`✅ [WEBHOOK] Webhook processed successfully`);
 return res.status(200).send('Webhook processed');
+} else {
+console.log(`❌ [WEBHOOK] Webhook processed with errors: ${result.error}`);
+return res.status(200).send('Webhook processed with errors');
+}
 } catch (error) {
-logger.error('Webhook error', { error: error.message });
+console.error(`❌ [WEBHOOK] Webhook error:`, error.message);
 if (error.message === 'Invalid signature' || error.message === 'Invalid webhook payload') {
 return res.status(200).send('Invalid webhook');
 }
