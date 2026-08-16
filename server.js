@@ -8,7 +8,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
-const compression = require('compression'); // ✅ NEW: Added compression
+const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const { Pool } = require('pg');
 const admin = require('firebase-admin');
@@ -117,7 +117,7 @@ return config.usdNgnRate;
 }
 
 // ============================================================
-// 4. 5SIM SERVICE CACHE (NEW)
+// 4. 5SIM SERVICE CACHE
 // ============================================================
 
 const serviceCache = new Map();
@@ -139,7 +139,6 @@ console.log(`✅ Cached ${data.length} services for ${country}`);
 return data;
 }
 
-// Clear cache endpoint (admin only)
 function clearServiceCache() {
 serviceCache.clear();
 console.log('🧹 Service cache cleared');
@@ -151,7 +150,7 @@ console.log('🧹 Service cache cleared');
 
 const pool = new Pool({
 connectionString: process.env.DATABASE_URL,
-max: 100, // ✅ UPGRADED: 20 → 100
+max: 100,
 idleTimeoutMillis: 30000,
 connectionTimeoutMillis: 10000,
 ssl: { rejectUnauthorized: false }
@@ -460,28 +459,28 @@ next();
 // 10. RATE LIMITING (UPGRADED)
 // ============================================================
 
-const apiLimiter = rateLimit({
-windowMs: 60 * 1000, // 1 minute (was 15 minutes)
-max: 30, // 30 requests per minute (was 100 per 15 min)
-message: 'Too many requests, please slow down.'
-});
-
-const servicesLimiter = rateLimit({
+const apiLimiter = rateLimit({ 
 windowMs: 60 * 1000,
-max: 60,
-message: 'Too many requests, please slow down.'
+max: 30,
+message: 'Too many requests, please slow down.' 
 });
 
-const purchaseLimiter = rateLimit({
-windowMs: 60 * 60 * 1000,
-max: 20,
-message: 'Too many purchase attempts, please try again later.'
+const servicesLimiter = rateLimit({ 
+windowMs: 60 * 1000, 
+max: 60, 
+message: 'Too many requests, please slow down.' 
 });
 
-const topupLimiter = rateLimit({
-windowMs: 60 * 60 * 1000,
-max: 10,
-message: 'Too many top-up attempts, please try again later.'
+const purchaseLimiter = rateLimit({ 
+windowMs: 60 * 60 * 1000, 
+max: 20, 
+message: 'Too many purchase attempts, please try again later.' 
+});
+
+const topupLimiter = rateLimit({ 
+windowMs: 60 * 60 * 1000, 
+max: 10, 
+message: 'Too many top-up attempts, please try again later.' 
 });
 
 // ============================================================
@@ -716,7 +715,7 @@ return result;
 }
 
 // ============================================================
-// FIX: Get services with 90% markup and live USD/NGN conversion
+// Get services with markup and live USD/NGN conversion
 // ============================================================
 
 async function fivesimGetServices(country) {
@@ -739,7 +738,7 @@ markupPercent: config.markupPercent
 }
 
 // ============================================================
-// FIX: Get price with 90% markup and live USD/NGN conversion
+// Get price with markup and live USD/NGN conversion
 // ============================================================
 
 async function fivesimGetPrice(service, country) {
@@ -1419,7 +1418,6 @@ return results;
 
 const app = express();
 
-// ✅ NEW: Compression for faster loading
 app.use(compression());
 
 app.use(cors({
@@ -1454,12 +1452,12 @@ next();
 app.get('/api/health', async (req, res) => {
 try {
 await query('SELECT 1');
-res.json({
-status: 'healthy',
-timestamp: new Date().toISOString(),
-environment: config.nodeEnv,
-uptime: process.uptime(),
-database: 'connected',
+res.json({ 
+status: 'healthy', 
+timestamp: new Date().toISOString(), 
+environment: config.nodeEnv, 
+uptime: process.uptime(), 
+database: 'connected', 
 provider: '5sim',
 cacheSize: serviceCache.size
 });
@@ -1551,13 +1549,13 @@ res.status(500).json({ error: 'Failed to get countries' });
 });
 
 // ============================================================
-// 22. SERVICES - WITH CACHING ✅
+// 22. SERVICES - WITH CACHING
 // ============================================================
 
 app.get('/api/numbers/services', authMiddleware, servicesLimiter, async (req, res) => {
 try {
 const country = req.query.country || 'US';
-const services = await getServicesWithCache(country); // ✅ Uses cache now
+const services = await getServicesWithCache(country);
 res.json(services);
 } catch (error) {
 logger.error('Get services failed', { error: error.message });
@@ -1566,7 +1564,7 @@ res.status(500).json({ error: 'Failed to get services' });
 });
 
 // ============================================================
-// 23. CLEAR CACHE - ADMIN ONLY ✅ NEW
+// 23. CLEAR CACHE - ADMIN ONLY
 // ============================================================
 
 app.delete('/api/admin/cache/services', authMiddleware, adminMiddleware, async (req, res) => {
@@ -1575,7 +1573,23 @@ res.json({ success: true, message: 'Service cache cleared' });
 });
 
 // ============================================================
-// 24. PRICE
+// 24. GET MARKUP - ADMIN ONLY ✅ NEW ENDPOINT
+// ============================================================
+
+app.get('/api/admin/markup', authMiddleware, adminMiddleware, async (req, res) => {
+try {
+res.json({
+markupPercent: config.markupPercent,
+message: 'Current markup percentage'
+});
+} catch (error) {
+logger.error('Failed to get markup', { error: error.message });
+res.status(500).json({ error: 'Failed to get markup' });
+}
+});
+
+// ============================================================
+// 25. PRICE
 // ============================================================
 
 app.get('/api/numbers/price', authMiddleware, servicesLimiter, async (req, res) => {
@@ -1602,7 +1616,7 @@ res.status(500).json({ error: error.message });
 });
 
 // ============================================================
-// 25. BUY NUMBER
+// 26. BUY NUMBER
 // ============================================================
 
 app.post('/api/numbers/buy', authMiddleware, purchaseLimiter, validate(schemas.buyNumber), async (req, res) => {
@@ -1626,7 +1640,7 @@ res.status(500).json({ error: error.message || 'Failed to purchase number' });
 });
 
 // ============================================================
-// 26. MY RENTALS
+// 27. MY RENTALS
 // ============================================================
 
 app.get('/api/numbers/my-rentals', authMiddleware, async (req, res) => {
@@ -1639,7 +1653,7 @@ res.status(500).json({ error: 'Failed to get rentals' });
 });
 
 // ============================================================
-// 27. STATUS
+// 28. STATUS
 // ============================================================
 
 app.get('/api/numbers/:id/status', authMiddleware, async (req, res) => {
@@ -1672,7 +1686,7 @@ res.status(500).json({ error: 'Failed to get rental status' });
 });
 
 // ============================================================
-// 28. CANCEL
+// 29. CANCEL
 // ============================================================
 
 app.post('/api/numbers/:id/cancel', authMiddleware, async (req, res) => {
@@ -1687,7 +1701,7 @@ res.status(500).json({ error: 'Failed to cancel rental' });
 });
 
 // ============================================================
-// 29. MESSAGES
+// 30. MESSAGES
 // ============================================================
 
 app.get('/api/numbers/:id/messages', authMiddleware, async (req, res) => {
@@ -1706,7 +1720,7 @@ res.json({ messages: [] });
 });
 
 // ============================================================
-// 30. FLUTTERWAVE CALLBACK - WITH CANCELLATION HANDLING
+// 31. FLUTTERWAVE CALLBACK - WITH CANCELLATION HANDLING
 // ============================================================
 
 app.get('/api/payments/callback', async (req, res) => {
@@ -1764,7 +1778,7 @@ return res.redirect(`${config.frontendUrls[0]}/wallet?error=Payment%20processing
 });
 
 // ============================================================
-// 31. FLUTTERWAVE WEBHOOK
+// 32. FLUTTERWAVE WEBHOOK
 // ============================================================
 
 app.post('/api/payments/flutterwave-webhook', async (req, res) => {
@@ -1800,7 +1814,7 @@ return res.status(500).send('Webhook failed');
 });
 
 // ============================================================
-// 32. ADMIN
+// 33. ADMIN
 // ============================================================
 
 app.get('/api/admin/users', authMiddleware, adminMiddleware, async (req, res) => {
@@ -1854,7 +1868,7 @@ res.status(500).json({ error: 'Failed to adjust wallet' });
 });
 
 // ============================================================
-// 33. ERRORS
+// 34. ERRORS
 // ============================================================
 
 app.use((req, res) => {
@@ -1867,7 +1881,7 @@ res.status(500).json({ error: 'Internal server error' });
 });
 
 // ============================================================
-// 34. SHUTDOWN
+// 35. SHUTDOWN
 // ============================================================
 
 let serverInstance = null;
@@ -1888,7 +1902,7 @@ process.on('SIGTERM', gracefulShutdown);
 process.on('SIGINT', gracefulShutdown);
 
 // ============================================================
-// 35. START
+// 36. START
 // ============================================================
 
 async function startServer() {
