@@ -1573,7 +1573,7 @@ res.json({ success: true, message: 'Service cache cleared' });
 });
 
 // ============================================================
-// 24. GET MARKUP - ADMIN ONLY ✅ NEW ENDPOINT
+// 24. GET MARKUP - ADMIN ONLY
 // ============================================================
 
 app.get('/api/admin/markup', authMiddleware, adminMiddleware, async (req, res) => {
@@ -1589,7 +1589,31 @@ res.status(500).json({ error: 'Failed to get markup' });
 });
 
 // ============================================================
-// 25. PRICE
+// 25. GET 5SIM BALANCE - ADMIN ONLY ✅ NEW
+// ============================================================
+
+app.get('/api/admin/5sim-balance', authMiddleware, adminMiddleware, async (req, res) => {
+try {
+console.log('📞 Fetching 5SIM balance...');
+const response = await fivesimClient.get('/user/profile');
+const balance = response.data.balance || 0;
+res.json({
+balance: balance,
+currency: 'USD',
+message: '5SIM balance fetched successfully'
+});
+} catch (error) {
+console.error('❌ Failed to fetch 5SIM balance:', error.message);
+logger.error('Failed to fetch 5SIM balance', { error: error.message });
+res.status(500).json({ 
+error: 'Failed to fetch 5SIM balance',
+message: error.message 
+});
+}
+});
+
+// ============================================================
+// 26. PRICE
 // ============================================================
 
 app.get('/api/numbers/price', authMiddleware, servicesLimiter, async (req, res) => {
@@ -1616,7 +1640,7 @@ res.status(500).json({ error: error.message });
 });
 
 // ============================================================
-// 26. BUY NUMBER
+// 27. BUY NUMBER
 // ============================================================
 
 app.post('/api/numbers/buy', authMiddleware, purchaseLimiter, validate(schemas.buyNumber), async (req, res) => {
@@ -1640,7 +1664,7 @@ res.status(500).json({ error: error.message || 'Failed to purchase number' });
 });
 
 // ============================================================
-// 27. MY RENTALS
+// 28. MY RENTALS
 // ============================================================
 
 app.get('/api/numbers/my-rentals', authMiddleware, async (req, res) => {
@@ -1653,7 +1677,7 @@ res.status(500).json({ error: 'Failed to get rentals' });
 });
 
 // ============================================================
-// 28. STATUS
+// 29. STATUS
 // ============================================================
 
 app.get('/api/numbers/:id/status', authMiddleware, async (req, res) => {
@@ -1686,7 +1710,7 @@ res.status(500).json({ error: 'Failed to get rental status' });
 });
 
 // ============================================================
-// 29. CANCEL
+// 30. CANCEL
 // ============================================================
 
 app.post('/api/numbers/:id/cancel', authMiddleware, async (req, res) => {
@@ -1701,7 +1725,7 @@ res.status(500).json({ error: 'Failed to cancel rental' });
 });
 
 // ============================================================
-// 30. MESSAGES
+// 31. MESSAGES
 // ============================================================
 
 app.get('/api/numbers/:id/messages', authMiddleware, async (req, res) => {
@@ -1720,7 +1744,7 @@ res.json({ messages: [] });
 });
 
 // ============================================================
-// 31. FLUTTERWAVE CALLBACK - WITH CANCELLATION HANDLING
+// 32. FLUTTERWAVE CALLBACK - WITH CANCELLATION HANDLING
 // ============================================================
 
 app.get('/api/payments/callback', async (req, res) => {
@@ -1778,7 +1802,7 @@ return res.redirect(`${config.frontendUrls[0]}/wallet?error=Payment%20processing
 });
 
 // ============================================================
-// 32. FLUTTERWAVE WEBHOOK
+// 33. FLUTTERWAVE WEBHOOK
 // ============================================================
 
 app.post('/api/payments/flutterwave-webhook', async (req, res) => {
@@ -1814,7 +1838,7 @@ return res.status(500).send('Webhook failed');
 });
 
 // ============================================================
-// 33. ADMIN
+// 34. ADMIN
 // ============================================================
 
 app.get('/api/admin/users', authMiddleware, adminMiddleware, async (req, res) => {
@@ -1868,7 +1892,7 @@ res.status(500).json({ error: 'Failed to adjust wallet' });
 });
 
 // ============================================================
-// 34. ERRORS
+// 35. ERRORS
 // ============================================================
 
 app.use((req, res) => {
@@ -1881,7 +1905,7 @@ res.status(500).json({ error: 'Internal server error' });
 });
 
 // ============================================================
-// 35. SHUTDOWN
+// 36. SHUTDOWN
 // ============================================================
 
 let serverInstance = null;
@@ -1902,7 +1926,7 @@ process.on('SIGTERM', gracefulShutdown);
 process.on('SIGINT', gracefulShutdown);
 
 // ============================================================
-// 36. START
+// 37. START
 // ============================================================
 
 async function startServer() {
