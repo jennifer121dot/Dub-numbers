@@ -738,98 +738,134 @@ markupPercent: config.markupPercent
 }
 
 // ============================================================
-// Get price with markup and live USD/NGN conversion
+// COMPLETE LIST OF KNOWN OPERATORS - ✅ FIXED
+// ============================================================
+
+const KNOWN_OPERATORS = [
+  'any', 'mts', 'megafon', 'beeline', 'tele2', 'vodafone', 'o2', 'ee', 
+  'three', 'orange', 'sfr', 'bouygues', 't-mobile', 'att', 'verizon', 
+  'sprint', 'tmobile', 'virgin', 'plus', 'play', 'wind', 'tim', '3', 
+  'telenor', 'telia', 'elisa', 'optus', 'telstra', 'singtel', 'starhub', 
+  'm1', 'globe', 'smart', 'sun', 'dtac', 'ais', 'true', 'jio', 'airtel', 
+  'vi', 'bsnl', 'mtn', 'glo', '9mobile', 'vodacom', 'safaricom', 'airtel', 
+  'orange', 'moov', 'etisalat', 'du', 'stc', 'zain', 'mobily', 'jawwy', 
+  'giffgaff', 'lycamobile', 'lebara', 'talkmobile',
+  // ✅ ADDED VIRTUAL OPERATORS
+  'virtual', 'virtual28', 'virtual1', 'virtual2', 'virtual3', 'virtual4', 'virtual5',
+  'virtual6', 'virtual7', 'virtual8', 'virtual9', 'virtual10'
+];
+
+// ============================================================
+// Get price with markup and live USD/NGN conversion - ✅ FIXED
 // ============================================================
 
 async function fivesimGetPrice(service, country) {
-const services = await fivesimGetServices(country);
+  const services = await fivesimGetServices(country);
+  let requested = String(service).trim().toLowerCase();
+  let extractedOperator = null;
+  
+  // Parse product_operator format
+  const parts = requested.split('_');
+  if (parts.length >= 2) {
+    const lastPart = parts[parts.length - 1];
+    // Check if last part is an operator
+    if (KNOWN_OPERATORS.includes(lastPart)) {
+      requested = parts.slice(0, -1).join('_');
+      extractedOperator = lastPart;
+      logger.debug(`fivesimGetPrice: Extracted product: ${requested}, operator: ${extractedOperator} from service: ${service}`);
+    }
+  }
 
-let requested = String(service).trim().toLowerCase();
+  const matches = services.filter(item => item.service.toLowerCase() === requested);
+  if (!matches.length) {
+    throw new Error(`No ${service} numbers available in ${country}`);
+  }
 
-const knownOperators = ['any', 'mts', 'megafon', 'beeline', 'tele2', 'vodafone', 'o2', 'ee', 'three', 'orange', 'sfr', 'bouygues', 't-mobile', 'att', 'verizon', 'sprint', 'tmobile', 'virgin', 'plus', 'play', 'wind', 'tim', '3', 'telenor', 'telia', 'elisa', 'optus', 'telstra', 'singtel', 'starhub', 'm1', 'globe', 'smart', 'sun', 'dtac', 'ais', 'true', 'jio', 'airtel', 'vi', 'bsnl', 'mtn', 'glo', '9mobile', 'vodacom', 'safaricom', 'airtel', 'orange', 'moov', 'etisalat', 'du', 'stc', 'zain', 'mobily', 'jawwy', 'giffgaff', 'lycamobile', 'lebara', 'talkmobile'];
+  // If operator was specified, try to find that specific operator first
+  let available = matches.filter(item => item.stock > 0);
+  if (extractedOperator) {
+    const operatorMatches = available.filter(item => item.operator === extractedOperator);
+    if (operatorMatches.length > 0) {
+      available = operatorMatches;
+    }
+  }
+  
+  const selected = available.length > 0 ? available.sort((a, b) => a.price - b.price)[0] : matches.sort((a, b) => a.price - b.price)[0];
 
-const parts = requested.split('_');
-if (parts.length >= 2) {
-const lastPart = parts[parts.length - 1];
-if (knownOperators.includes(lastPart)) {
-requested = parts.slice(0, -1).join('_');
-logger.debug(`fivesimGetPrice: Extracted product name: ${requested} from service: ${service}`);
+  return {
+    price: selected.price,
+    currency: 'NGN',
+    stock: selected.stock,
+    operator: selected.operator,
+    service: selected.service,
+    country: selected.country
+  };
 }
-}
 
-const matches = services.filter(item => item.service.toLowerCase() === requested);
-if (!matches.length) {
-throw new Error(`No ${service} numbers available in ${country}`);
-}
-
-const available = matches.filter(item => item.stock > 0).sort((a, b) => a.price - b.price);
-const selected = available[0] || matches.sort((a, b) => a.price - b.price)[0];
-
-return {
-price: selected.price,
-currency: 'NGN',
-stock: selected.stock,
-operator: selected.operator,
-service: selected.service,
-country: selected.country
-};
-}
+// ============================================================
+// Buy number from 5SIM - ✅ FIXED
+// ============================================================
 
 async function fivesimBuyNumber(service, country, options = {}) {
-const countryInfo = resolve5SimCountry(country);
-const operator = options.operator || 'any';
-let product = String(service).trim().toLowerCase();
+  const countryInfo = resolve5SimCountry(country);
+  let product = String(service).trim().toLowerCase();
+  let operator = options.operator || 'any';
+  
+  // Parse product_operator format
+  const parts = product.split('_');
+  if (parts.length >= 2) {
+    const lastPart = parts[parts.length - 1];
+    if (KNOWN_OPERATORS.includes(lastPart)) {
+      product = parts.slice(0, -1).join('_');
+      operator = lastPart; // Use the extracted operator
+      logger.debug(`fivesimBuyNumber: Extracted product: ${product}, operator: ${operator} from service: ${service}`);
+    }
+  }
+  
+  // If operator wasn't extracted from product, use options.operator
+  if (operator === 'any' && options.operator) {
+    operator = options.operator;
+  }
+  
+  const params = {};
+  if (options.forwarding) params.forwarding = '1';
+  if (options.number) params.number = options.number;
+  if (options.reuse) params.reuse = '1';
+  if (options.voice) params.voice = '1';
+  if (options.maxPrice) params.maxPrice = options.maxPrice;
 
-const knownOperators = ['any', 'mts', 'megafon', 'beeline', 'tele2', 'vodafone', 'o2', 'ee', 'three', 'orange', 'sfr', 'bouygues', 't-mobile', 'att', 'verizon', 'sprint', 'tmobile', 'virgin', 'plus', 'play', 'wind', 'tim', '3', 'telenor', 'telia', 'elisa', 'optus', 'telstra', 'singtel', 'starhub', 'm1', 'globe', 'smart', 'sun', 'dtac', 'ais', 'true', 'jio', 'airtel', 'vi', 'bsnl', 'mtn', 'glo', '9mobile', 'vodacom', 'safaricom', 'airtel', 'orange', 'moov', 'etisalat', 'du', 'stc', 'zain', 'mobily', 'jawwy', 'giffgaff', 'lycamobile', 'lebara', 'talkmobile'];
-
-const parts = product.split('_');
-if (parts.length >= 2) {
-const lastPart = parts[parts.length - 1];
-if (knownOperators.includes(lastPart)) {
-product = parts.slice(0, -1).join('_');
-logger.debug(`fivesimBuyNumber: Extracted product name: ${product} from service: ${service}`);
-}
-}
-
-const params = {};
-if (options.forwarding) params.forwarding = '1';
-if (options.number) params.number = options.number;
-if (options.reuse) params.reuse = '1';
-if (options.voice) params.voice = '1';
-if (options.maxPrice) params.maxPrice = options.maxPrice;
-
-try {
-logger.info(`5SIM buy: country=${countryInfo.name}, operator=${operator}, product=${product}`);
-const response = await fivesimClient.get(
-`/user/buy/activation/${encodeURIComponent(countryInfo.name)}/${encodeURIComponent(operator)}/${encodeURIComponent(product)}`,
-{ params }
-);
-const data = response.data;
-if (!data || !data.id || !data.phone) {
-throw new Error('Invalid response from 5SIM');
-}
-return {
-id: data.id,
-number: data.phone,
-phone: data.phone,
-operator: data.operator,
-service: data.product,
-service_name: data.product,
-price: Number(data.price),
-end_time: data.expires,
-expires: data.expires,
-status: data.status,
-country: data.country,
-sms: data.sms || [],
-raw: data
-};
-} catch (error) {
-logger.error('5SIM buy failed', { service, country, product, operator, error: error.response?.data || error.message });
-const providerError = error.response?.data;
-if (providerError?.message) throw new Error(providerError.message);
-if (typeof providerError === 'string') throw new Error(providerError);
-throw new Error('Failed to purchase number from 5SIM');
-}
+  try {
+    logger.info(`5SIM buy: country=${countryInfo.name}, operator=${operator}, product=${product}`);
+    const response = await fivesimClient.get(
+      `/user/buy/activation/${encodeURIComponent(countryInfo.name)}/${encodeURIComponent(operator)}/${encodeURIComponent(product)}`,
+      { params }
+    );
+    const data = response.data;
+    if (!data || !data.id || !data.phone) {
+      throw new Error('Invalid response from 5SIM');
+    }
+    return {
+      id: data.id,
+      number: data.phone,
+      phone: data.phone,
+      operator: data.operator,
+      service: data.product,
+      service_name: data.product,
+      price: Number(data.price),
+      end_time: data.expires,
+      expires: data.expires,
+      status: data.status,
+      country: data.country,
+      sms: data.sms || [],
+      raw: data
+    };
+  } catch (error) {
+    logger.error('5SIM buy failed', { service, country, product, operator, error: error.response?.data || error.message });
+    const providerError = error.response?.data;
+    if (providerError?.message) throw new Error(providerError.message);
+    if (typeof providerError === 'string') throw new Error(providerError);
+    throw new Error('Failed to purchase number from 5SIM');
+  }
 }
 
 async function fivesimGetOrder(orderId) {
@@ -1093,7 +1129,12 @@ await client.query('COMMIT');
 let rental;
 try {
 const serviceName = providerPrice.service || service;
-rental = await fivesimBuyNumber(serviceName, country, options);
+// Pass the operator if it was extracted
+const buyOptions = { ...options };
+if (providerPrice.operator) {
+buyOptions.operator = providerPrice.operator;
+}
+rental = await fivesimBuyNumber(serviceName, country, buyOptions);
 } catch (error) {
 await query(`UPDATE purchases SET status = 'failed', metadata = $1 WHERE id = $2`, [{ error: error.message }, purchaseId]);
 throw new Error('Provider service unavailable');
@@ -1589,7 +1630,7 @@ res.status(500).json({ error: 'Failed to get markup' });
 });
 
 // ============================================================
-// 25. GET 5SIM BALANCE - ADMIN ONLY ✅ NEW
+// 25. GET 5SIM BALANCE - ADMIN ONLY
 // ============================================================
 
 app.get('/api/admin/5sim-balance', authMiddleware, adminMiddleware, async (req, res) => {
