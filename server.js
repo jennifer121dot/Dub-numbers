@@ -1098,13 +1098,27 @@ const pending = await client.query(
 );
 const purchaseId = pending.rows[0].id;
 
+// ✅ ADDED DEBUGGING
+console.log(`🔍 [DEBUG] Checking balance for user ID: ${userId}`);
+console.log(`🔍 [DEBUG] Price needed: ${customerPrice}`);
+
 const wallet = await client.query(`SELECT wallet_balance FROM users WHERE id = $1 FOR UPDATE`, [userId]);
-if (!wallet.rows.length) throw new Error('User not found');
+
+// ✅ ADDED DEBUGGING
+console.log(`🔍 [DEBUG] Wallet query result:`, wallet.rows.length ? wallet.rows[0] : 'NO USER FOUND');
+
+if (!wallet.rows.length) {
+console.error(`❌ User not found: ${userId}`);
+throw new Error('User not found');
+}
 
 const balance = wallet.rows[0].wallet_balance;
+console.log(`🔍 [DEBUG] User balance: ${balance}, Need: ${customerPrice}`);
+
 const sufficient = await client.query(`SELECT $1::NUMERIC >= $2::NUMERIC AS sufficient`, [balance, customerPrice]);
 
 if (!sufficient.rows[0].sufficient) {
+console.error(`❌ Insufficient balance: ${balance} < ${customerPrice}`);
 await client.query(`UPDATE purchases SET status = 'failed', metadata = $1 WHERE id = $2`, [{ error: 'Insufficient balance' }, purchaseId]);
 await client.query('COMMIT');
 throw new Error('Insufficient balance');
@@ -1959,6 +1973,10 @@ async function startServer() {
 if (process.env.NODE_ENV === 'development' || process.env.RUN_MIGRATIONS === 'true') {
 await runMigrations();
 }
+
+// ✅ AUTO-CLEAR CACHE ON STARTUP
+clearServiceCache();
+console.log('🧹 Service cache cleared on startup');
 
 serverInstance = app.listen(config.port, () => {
 logger.info(`🚀 Dub Number API running on port ${config.port}`);
