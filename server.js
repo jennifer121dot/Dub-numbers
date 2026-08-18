@@ -700,8 +700,8 @@ if (!Number.isFinite(cost) || cost <= 0) continue;
 result.push({
 id: `${product}_${operator}`,
 service: product,
+operator: operator,
 name: product,
-operator,
 price: cost,
 stock: Number.isFinite(count) ? count : 0,
 currency: 'USD',
@@ -738,25 +738,8 @@ markupPercent: config.markupPercent
 }
 
 // ============================================================
-// COMPLETE LIST OF KNOWN OPERATORS - ✅ FIXED
-// ============================================================
-
-const KNOWN_OPERATORS = [
-  'any', 'mts', 'megafon', 'beeline', 'tele2', 'vodafone', 'o2', 'ee', 
-  'three', 'orange', 'sfr', 'bouygues', 't-mobile', 'att', 'verizon', 
-  'sprint', 'tmobile', 'virgin', 'plus', 'play', 'wind', 'tim', '3', 
-  'telenor', 'telia', 'elisa', 'optus', 'telstra', 'singtel', 'starhub', 
-  'm1', 'globe', 'smart', 'sun', 'dtac', 'ais', 'true', 'jio', 'airtel', 
-  'vi', 'bsnl', 'mtn', 'glo', '9mobile', 'vodacom', 'safaricom', 'airtel', 
-  'orange', 'moov', 'etisalat', 'du', 'stc', 'zain', 'mobily', 'jawwy', 
-  'giffgaff', 'lycamobile', 'lebara', 'talkmobile',
-  // ✅ ADDED VIRTUAL OPERATORS
-  'virtual', 'virtual28', 'virtual1', 'virtual2', 'virtual3', 'virtual4', 'virtual5',
-  'virtual6', 'virtual7', 'virtual8', 'virtual9', 'virtual10'
-];
-
-// ============================================================
-// Get price with markup and live USD/NGN conversion - ✅ FIXED
+// UNIVERSAL PARSER - Works for ALL services
+// No hardcoded operator list needed!
 // ============================================================
 
 async function fivesimGetPrice(service, country) {
@@ -764,33 +747,41 @@ async function fivesimGetPrice(service, country) {
   let requested = String(service).trim().toLowerCase();
   let extractedOperator = null;
   
-  // Parse product_operator format
+  // ✅ UNIVERSAL PARSER: Extract operator from ANY service_operator format
   const parts = requested.split('_');
+  
   if (parts.length >= 2) {
-    const lastPart = parts[parts.length - 1];
-    // Check if last part is an operator
-    if (KNOWN_OPERATORS.includes(lastPart)) {
-      requested = parts.slice(0, -1).join('_');
-      extractedOperator = lastPart;
-      logger.debug(`fivesimGetPrice: Extracted product: ${requested}, operator: ${extractedOperator} from service: ${service}`);
-    }
+    // Last part is the operator (virtual63, vodafone, att, etc.)
+    extractedOperator = parts[parts.length - 1];
+    requested = parts.slice(0, -1).join('_');
+    logger.debug(`fivesimGetPrice: Product: ${requested}, Operator: ${extractedOperator}`);
   }
 
-  const matches = services.filter(item => item.service.toLowerCase() === requested);
+  // Find matching services
+  let matches = services.filter(item => item.service.toLowerCase() === requested);
+  
+  // If no exact match, try partial
+  if (!matches.length) {
+    matches = services.filter(item => 
+      item.service.toLowerCase().includes(requested) || 
+      requested.includes(item.service.toLowerCase())
+    );
+  }
+  
   if (!matches.length) {
     throw new Error(`No ${service} numbers available in ${country}`);
   }
 
-  // If operator was specified, try to find that specific operator first
+  // Filter by operator if specified
   let available = matches.filter(item => item.stock > 0);
   if (extractedOperator) {
-    const operatorMatches = available.filter(item => item.operator === extractedOperator);
-    if (operatorMatches.length > 0) {
-      available = operatorMatches;
-    }
+    const opMatches = available.filter(item => item.operator === extractedOperator);
+    if (opMatches.length) available = opMatches;
   }
   
-  const selected = available.length > 0 ? available.sort((a, b) => a.price - b.price)[0] : matches.sort((a, b) => a.price - b.price)[0];
+  const selected = available.length 
+    ? available.sort((a, b) => a.price - b.price)[0] 
+    : matches.sort((a, b) => a.price - b.price)[0];
 
   return {
     price: selected.price,
@@ -803,7 +794,7 @@ async function fivesimGetPrice(service, country) {
 }
 
 // ============================================================
-// Buy number from 5SIM - ✅ FIXED
+// UNIVERSAL BUY FUNCTION - Works for ALL services
 // ============================================================
 
 async function fivesimBuyNumber(service, country, options = {}) {
@@ -811,20 +802,14 @@ async function fivesimBuyNumber(service, country, options = {}) {
   let product = String(service).trim().toLowerCase();
   let operator = options.operator || 'any';
   
-  // Parse product_operator format
+  // ✅ UNIVERSAL PARSER: Extract operator from ANY service_operator format
   const parts = product.split('_');
-  if (parts.length >= 2) {
-    const lastPart = parts[parts.length - 1];
-    if (KNOWN_OPERATORS.includes(lastPart)) {
-      product = parts.slice(0, -1).join('_');
-      operator = lastPart; // Use the extracted operator
-      logger.debug(`fivesimBuyNumber: Extracted product: ${product}, operator: ${operator} from service: ${service}`);
-    }
-  }
   
-  // If operator wasn't extracted from product, use options.operator
-  if (operator === 'any' && options.operator) {
-    operator = options.operator;
+  if (parts.length >= 2) {
+    // Last part is the operator (virtual63, vodafone, att, etc.)
+    operator = parts[parts.length - 1];
+    product = parts.slice(0, -1).join('_');
+    logger.debug(`fivesimBuyNumber: Product: ${product}, Operator: ${operator}`);
   }
   
   const params = {};
