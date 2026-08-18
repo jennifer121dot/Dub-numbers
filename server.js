@@ -743,54 +743,54 @@ markupPercent: config.markupPercent
 // ============================================================
 
 async function fivesimGetPrice(service, country) {
-  const services = await fivesimGetServices(country);
-  let requested = String(service).trim().toLowerCase();
-  let extractedOperator = null;
-  
-  // ✅ UNIVERSAL PARSER: Extract operator from ANY service_operator format
-  const parts = requested.split('_');
-  
-  if (parts.length >= 2) {
-    // Last part is the operator (virtual63, vodafone, att, etc.)
-    extractedOperator = parts[parts.length - 1];
-    requested = parts.slice(0, -1).join('_');
-    logger.debug(`fivesimGetPrice: Product: ${requested}, Operator: ${extractedOperator}`);
-  }
+const services = await fivesimGetServices(country);
+let requested = String(service).trim().toLowerCase();
+let extractedOperator = null;
 
-  // Find matching services
-  let matches = services.filter(item => item.service.toLowerCase() === requested);
-  
-  // If no exact match, try partial
-  if (!matches.length) {
-    matches = services.filter(item => 
-      item.service.toLowerCase().includes(requested) || 
-      requested.includes(item.service.toLowerCase())
-    );
-  }
-  
-  if (!matches.length) {
-    throw new Error(`No ${service} numbers available in ${country}`);
-  }
+// ✅ UNIVERSAL PARSER: Extract operator from ANY service_operator format
+const parts = requested.split('_');
 
-  // Filter by operator if specified
-  let available = matches.filter(item => item.stock > 0);
-  if (extractedOperator) {
-    const opMatches = available.filter(item => item.operator === extractedOperator);
-    if (opMatches.length) available = opMatches;
-  }
-  
-  const selected = available.length 
-    ? available.sort((a, b) => a.price - b.price)[0] 
-    : matches.sort((a, b) => a.price - b.price)[0];
+if (parts.length >= 2) {
+// Last part is the operator (virtual63, vodafone, att, etc.)
+extractedOperator = parts[parts.length - 1];
+requested = parts.slice(0, -1).join('_');
+logger.debug(`fivesimGetPrice: Product: ${requested}, Operator: ${extractedOperator}`);
+}
 
-  return {
-    price: selected.price,
-    currency: selected.currency || 'NGN',
-    stock: selected.stock,
-    operator: selected.operator,
-    service: selected.service,
-    country: selected.country
-  };
+// Find matching services
+let matches = services.filter(item => item.service.toLowerCase() === requested);
+
+// If no exact match, try partial
+if (!matches.length) {
+matches = services.filter(item => 
+item.service.toLowerCase().includes(requested) || 
+requested.includes(item.service.toLowerCase())
+);
+}
+
+if (!matches.length) {
+throw new Error(`No ${service} numbers available in ${country}`);
+}
+
+// Filter by operator if specified
+let available = matches.filter(item => item.stock > 0);
+if (extractedOperator) {
+const opMatches = available.filter(item => item.operator === extractedOperator);
+if (opMatches.length) available = opMatches;
+}
+
+const selected = available.length 
+? available.sort((a, b) => a.price - b.price)[0] 
+: matches.sort((a, b) => a.price - b.price)[0];
+
+return {
+price: selected.price,
+currency: selected.currency || 'NGN',
+stock: selected.stock,
+operator: selected.operator,
+service: selected.service,
+country: selected.country
+};
 }
 
 // ============================================================
@@ -798,59 +798,59 @@ async function fivesimGetPrice(service, country) {
 // ============================================================
 
 async function fivesimBuyNumber(service, country, options = {}) {
-  const countryInfo = resolve5SimCountry(country);
-  let product = String(service).trim().toLowerCase();
-  let operator = options.operator || 'any';
-  
-  // ✅ UNIVERSAL PARSER: Extract operator from ANY service_operator format
-  const parts = product.split('_');
-  
-  if (parts.length >= 2) {
-    // Last part is the operator (virtual63, vodafone, att, etc.)
-    operator = parts[parts.length - 1];
-    product = parts.slice(0, -1).join('_');
-    logger.debug(`fivesimBuyNumber: Product: ${product}, Operator: ${operator}`);
-  }
-  
-  const params = {};
-  if (options.forwarding) params.forwarding = '1';
-  if (options.number) params.number = options.number;
-  if (options.reuse) params.reuse = '1';
-  if (options.voice) params.voice = '1';
-  if (options.maxPrice) params.maxPrice = options.maxPrice;
+const countryInfo = resolve5SimCountry(country);
+let product = String(service).trim().toLowerCase();
+let operator = options.operator || 'any';
 
-  try {
-    logger.info(`5SIM buy: country=${countryInfo.name}, operator=${operator}, product=${product}`);
-    const response = await fivesimClient.get(
-      `/user/buy/activation/${encodeURIComponent(countryInfo.name)}/${encodeURIComponent(operator)}/${encodeURIComponent(product)}`,
-      { params }
-    );
-    const data = response.data;
-    if (!data || !data.id || !data.phone) {
-      throw new Error('Invalid response from 5SIM');
-    }
-    return {
-      id: data.id,
-      number: data.phone,
-      phone: data.phone,
-      operator: data.operator,
-      service: data.product,
-      service_name: data.product,
-      price: Number(data.price),
-      end_time: data.expires,
-      expires: data.expires,
-      status: data.status,
-      country: data.country,
-      sms: data.sms || [],
-      raw: data
-    };
-  } catch (error) {
-    logger.error('5SIM buy failed', { service, country, product, operator, error: error.response?.data || error.message });
-    const providerError = error.response?.data;
-    if (providerError?.message) throw new Error(providerError.message);
-    if (typeof providerError === 'string') throw new Error(providerError);
-    throw new Error('Failed to purchase number from 5SIM');
-  }
+// ✅ UNIVERSAL PARSER: Extract operator from ANY service_operator format
+const parts = product.split('_');
+
+if (parts.length >= 2) {
+// Last part is the operator (virtual63, vodafone, att, etc.)
+operator = parts[parts.length - 1];
+product = parts.slice(0, -1).join('_');
+logger.debug(`fivesimBuyNumber: Product: ${product}, Operator: ${operator}`);
+}
+
+const params = {};
+if (options.forwarding) params.forwarding = '1';
+if (options.number) params.number = options.number;
+if (options.reuse) params.reuse = '1';
+if (options.voice) params.voice = '1';
+if (options.maxPrice) params.maxPrice = options.maxPrice;
+
+try {
+logger.info(`5SIM buy: country=${countryInfo.name}, operator=${operator}, product=${product}`);
+const response = await fivesimClient.get(
+`/user/buy/activation/${encodeURIComponent(countryInfo.name)}/${encodeURIComponent(operator)}/${encodeURIComponent(product)}`,
+{ params }
+);
+const data = response.data;
+if (!data || !data.id || !data.phone) {
+throw new Error('Invalid response from 5SIM');
+}
+return {
+id: data.id,
+number: data.phone,
+phone: data.phone,
+operator: data.operator,
+service: data.product,
+service_name: data.product,
+price: Number(data.price),
+end_time: data.expires,
+expires: data.expires,
+status: data.status,
+country: data.country,
+sms: data.sms || [],
+raw: data
+};
+} catch (error) {
+logger.error('5SIM buy failed', { service, country, product, operator, error: error.response?.data || error.message });
+const providerError = error.response?.data;
+if (providerError?.message) throw new Error(providerError.message);
+if (typeof providerError === 'string') throw new Error(providerError);
+throw new Error('Failed to purchase number from 5SIM');
+}
 }
 
 async function fivesimGetOrder(orderId) {
@@ -1059,16 +1059,16 @@ REFUNDED: 'refunded'
 // ============================================================
 
 async function calculatePriceInDb(providerCost, currency = 'USD') {
-    // ✅ If already in NGN, just apply markup (don't convert again!)
-    if (currency === 'NGN') {
-        const priceWithMarkup = providerCost * (1 + config.markupPercent / 100);
-        return parseFloat(priceWithMarkup.toFixed(2));
-    }
-    
-    // If USD, convert to NGN first
-    const ngnRate = await fetchLiveNgnRate();
-    const priceInNgn = providerCost * ngnRate * (1 + config.markupPercent / 100);
-    return parseFloat(priceInNgn.toFixed(2));
+// ✅ If already in NGN, just apply markup (don't convert again!)
+if (currency === 'NGN') {
+const priceWithMarkup = providerCost * (1 + config.markupPercent / 100);
+return parseFloat(priceWithMarkup.toFixed(2));
+}
+
+// If USD, convert to NGN first
+const ngnRate = await fetchLiveNgnRate();
+const priceInNgn = providerCost * ngnRate * (1 + config.markupPercent / 100);
+return parseFloat(priceInNgn.toFixed(2));
 }
 
 async function numbersBuy(userId, service, country, options = {}) {
@@ -1776,7 +1776,7 @@ res.status(500).json({ error: 'Failed to cancel rental' });
 });
 
 // ============================================================
-// 31. MESSAGES
+// 31. MESSAGES - ✅ FIXED: Added refresh and better error handling
 // ============================================================
 
 app.get('/api/numbers/:id/messages', authMiddleware, async (req, res) => {
@@ -1785,17 +1785,37 @@ const purchase = await query(`SELECT * FROM purchases WHERE id = $1 AND user_id 
 if (!purchase.rows.length) return res.status(404).json({ error: 'Purchase not found' });
 
 const data = purchase.rows[0];
-if (!data.provider_order_id) return res.json({ messages: [] });
+if (!data.provider_order_id) return res.json({ messages: [], status: data.status });
 
-const messages = await fivesimGetMessages(data.provider_order_id);
-res.json({ messages });
-} catch {
-res.json({ messages: [] });
+// ✅ Force refresh from 5SIM
+const freshData = await fivesimGetOrder(data.provider_order_id);
+const messages = Array.isArray(freshData.sms) ? freshData.sms : [];
+
+// ✅ Update status if changed
+if (freshData.status && freshData.status !== data.status) {
+await query(`UPDATE purchases SET status = $1, metadata = $2 WHERE id = $3`, 
+[freshData.status.toLowerCase(), { ...data.metadata, providerStatus: freshData.status }, req.params.id]);
+}
+
+res.json({ 
+messages: messages.map(msg => ({
+text: msg.text || msg.message || '',
+code: msg.code || null,
+sender: msg.sender || null,
+time: msg.created_at || msg.date || new Date().toISOString()
+})),
+status: freshData.status || data.status,
+phone: freshData.phone || data.number || 'N/A',
+expires: freshData.expires || data.expires_at
+});
+} catch (error) {
+logger.error('Messages fetch failed', { purchaseId: req.params.id, error: error.message });
+res.json({ messages: [], error: 'Failed to fetch messages' });
 }
 });
 
 // ============================================================
-// 32. FLUTTERWAVE CALLBACK - WITH CANCELLATION HANDLING
+// 32. FLUTTERWAVE CALLBACK
 // ============================================================
 
 app.get('/api/payments/callback', async (req, res) => {
