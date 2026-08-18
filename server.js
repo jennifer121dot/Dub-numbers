@@ -785,7 +785,7 @@ async function fivesimGetPrice(service, country) {
 
   return {
     price: selected.price,
-    currency: 'NGN',
+    currency: selected.currency || 'NGN',
     stock: selected.stock,
     operator: selected.operator,
     service: selected.service,
@@ -1054,10 +1054,21 @@ EXPIRED: 'expired',
 REFUNDED: 'refunded'
 };
 
+// ============================================================
+// ✅ FIXED: calculatePriceInDb - Now handles both USD and NGN
+// ============================================================
+
 async function calculatePriceInDb(providerCost, currency = 'USD') {
-const ngnRate = await fetchLiveNgnRate();
-const priceInNgn = providerCost * ngnRate * (1 + config.markupPercent / 100);
-return parseFloat(priceInNgn.toFixed(2));
+    // ✅ If already in NGN, just apply markup (don't convert again!)
+    if (currency === 'NGN') {
+        const priceWithMarkup = providerCost * (1 + config.markupPercent / 100);
+        return parseFloat(priceWithMarkup.toFixed(2));
+    }
+    
+    // If USD, convert to NGN first
+    const ngnRate = await fetchLiveNgnRate();
+    const priceInNgn = providerCost * ngnRate * (1 + config.markupPercent / 100);
+    return parseFloat(priceInNgn.toFixed(2));
 }
 
 async function numbersBuy(userId, service, country, options = {}) {
@@ -1089,7 +1100,9 @@ await query(
 throw error;
 }
 
-const customerPrice = await calculatePriceInDb(providerPrice.price, 'NGN');
+// ✅ FIXED: Use the currency from providerPrice (already NGN)
+const customerPrice = await calculatePriceInDb(providerPrice.price, providerPrice.currency || 'NGN');
+console.log(`🔍 [DEBUG] Customer price after markup: ${customerPrice}`);
 
 await client.query('BEGIN');
 const pending = await client.query(
@@ -1098,13 +1111,12 @@ const pending = await client.query(
 );
 const purchaseId = pending.rows[0].id;
 
-// ✅ ADDED DEBUGGING
+// ✅ DEBUGGING
 console.log(`🔍 [DEBUG] Checking balance for user ID: ${userId}`);
 console.log(`🔍 [DEBUG] Price needed: ${customerPrice}`);
 
 const wallet = await client.query(`SELECT wallet_balance FROM users WHERE id = $1 FOR UPDATE`, [userId]);
 
-// ✅ ADDED DEBUGGING
 console.log(`🔍 [DEBUG] Wallet query result:`, wallet.rows.length ? wallet.rows[0] : 'NO USER FOUND');
 
 if (!wallet.rows.length) {
@@ -1128,7 +1140,6 @@ await client.query('COMMIT');
 let rental;
 try {
 const serviceName = providerPrice.service || service;
-// Pass the operator if it was extracted
 const buyOptions = { ...options };
 if (providerPrice.operator) {
 buyOptions.operator = providerPrice.operator;
