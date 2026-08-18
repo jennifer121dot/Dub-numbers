@@ -1041,7 +1041,7 @@ client.release();
 }
 
 // ============================================================
-// 14. NUMBER SERVICE
+// 14. NUMBER SERVICE - ✅ FIXED: No double markup
 // ============================================================
 
 const PURCHASE_STATES = {
@@ -1053,23 +1053,6 @@ CANCELLED: 'cancelled',
 EXPIRED: 'expired',
 REFUNDED: 'refunded'
 };
-
-// ============================================================
-// ✅ FIXED: calculatePriceInDb - Now handles both USD and NGN
-// ============================================================
-
-async function calculatePriceInDb(providerCost, currency = 'USD') {
-// ✅ If already in NGN, just apply markup (don't convert again!)
-if (currency === 'NGN') {
-const priceWithMarkup = providerCost * (1 + config.markupPercent / 100);
-return parseFloat(priceWithMarkup.toFixed(2));
-}
-
-// If USD, convert to NGN first
-const ngnRate = await fetchLiveNgnRate();
-const priceInNgn = providerCost * ngnRate * (1 + config.markupPercent / 100);
-return parseFloat(priceInNgn.toFixed(2));
-}
 
 async function numbersBuy(userId, service, country, options = {}) {
 const client = await getClient();
@@ -1100,9 +1083,9 @@ await query(
 throw error;
 }
 
-// ✅ FIXED: Use the currency from providerPrice (already NGN)
-const customerPrice = await calculatePriceInDb(providerPrice.price, providerPrice.currency || 'NGN');
-console.log(`🔍 [DEBUG] Customer price after markup: ${customerPrice}`);
+// ✅ FIX: Use price directly (already has markup from fivesimGetServices)
+const customerPrice = providerPrice.price;
+console.log(`🔍 [DEBUG] Customer price (already with markup): ${customerPrice}`);
 
 await client.query('BEGIN');
 const pending = await client.query(
@@ -1111,7 +1094,6 @@ const pending = await client.query(
 );
 const purchaseId = pending.rows[0].id;
 
-// ✅ DEBUGGING
 console.log(`🔍 [DEBUG] Checking balance for user ID: ${userId}`);
 console.log(`🔍 [DEBUG] Price needed: ${customerPrice}`);
 
@@ -1177,6 +1159,7 @@ const newBalance = await client.query(
 );
 const balanceAfter = newBalance.rows[0].wallet_balance;
 
+// ✅ Store customer_price correctly
 const result = await client.query(
 `UPDATE purchases SET provider_order_id = $1, provider_cost = $2, customer_price = $3, currency = 'NGN', expires_at = $4, status = 'active', metadata = $5 WHERE id = $6 RETURNING *`,
 [String(rental.id), rental.price, customerPrice, rental.expires ? new Date(rental.expires) : null, { providerOrder: rental.raw || rental }, purchaseId]
@@ -1308,7 +1291,7 @@ return { tx_ref, link: payment.link };
 }
 
 // ============================================================
-// PAYMENT PROCESS CALLBACK - WITH DETAILED LOGGING
+// PAYMENT PROCESS CALLBACK
 // ============================================================
 
 async function paymentProcessCallback(tx_ref, transaction_id) {
@@ -1776,7 +1759,7 @@ res.status(500).json({ error: 'Failed to cancel rental' });
 });
 
 // ============================================================
-// 31. MESSAGES - ✅ FIXED: Added refresh and better error handling
+// 31. MESSAGES - ✅ FIXED: Better refresh and error handling
 // ============================================================
 
 app.get('/api/numbers/:id/messages', authMiddleware, async (req, res) => {
@@ -1785,7 +1768,14 @@ const purchase = await query(`SELECT * FROM purchases WHERE id = $1 AND user_id 
 if (!purchase.rows.length) return res.status(404).json({ error: 'Purchase not found' });
 
 const data = purchase.rows[0];
-if (!data.provider_order_id) return res.json({ messages: [], status: data.status });
+if (!data.provider_order_id) {
+return res.json({ 
+messages: [], 
+status: data.status,
+phone: data.metadata?.providerOrder?.phone || 'N/A',
+message: 'No provider order ID found'
+});
+}
 
 // ✅ Force refresh from 5SIM
 const freshData = await fivesimGetOrder(data.provider_order_id);
@@ -1793,8 +1783,13 @@ const messages = Array.isArray(freshData.sms) ? freshData.sms : [];
 
 // ✅ Update status if changed
 if (freshData.status && freshData.status !== data.status) {
+const newStatus = freshData.status.toLowerCase();
+const statusMap = { pending: 'pending', received: 'active', finished: 'active', canceled: 'cancelled', timeout: 'expired', banned: 'failed' };
+const mappedStatus = statusMap[newStatus] || newStatus;
+if (Object.values(PURCHASE_STATES).includes(mappedStatus)) {
 await query(`UPDATE purchases SET status = $1, metadata = $2 WHERE id = $3`, 
-[freshData.status.toLowerCase(), { ...data.metadata, providerStatus: freshData.status }, req.params.id]);
+[mappedStatus, { ...data.metadata, providerStatus: freshData.status }, req.params.id]);
+}
 }
 
 res.json({ 
@@ -1805,12 +1800,18 @@ sender: msg.sender || null,
 time: msg.created_at || msg.date || new Date().toISOString()
 })),
 status: freshData.status || data.status,
-phone: freshData.phone || data.number || 'N/A',
-expires: freshData.expires || data.expires_at
+phone: freshData.phone || data.metadata?.providerOrder?.phone || 'N/A',
+expires: freshData.expires || data.expires_at,
+count: messages.length
 });
 } catch (error) {
 logger.error('Messages fetch failed', { purchaseId: req.params.id, error: error.message });
-res.json({ messages: [], error: 'Failed to fetch messages' });
+res.json({ 
+messages: [], 
+error: 'Failed to fetch messages',
+status: data?.status || 'unknown',
+phone: data?.metadata?.providerOrder?.phone || 'N/A'
+});
 }
 });
 
